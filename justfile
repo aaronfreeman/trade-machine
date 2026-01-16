@@ -43,7 +43,7 @@ check:
 watch:
     templ generate --watch
 
-migrate-up:
+migrate:
 	goose -dir migrations postgres "host=localhost port=5432 user=trademachine password=trademachine_dev dbname=trademachine sslmode=disable" up
 
 migrate-down:

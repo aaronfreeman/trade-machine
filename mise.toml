@@ -3,6 +3,7 @@ go = "1.25"
 just = "latest"
 "go:github.com/a-h/templ/cmd/templ" = "latest"
 "go:github.com/wailsapp/wails/v2/cmd/wails" = "latest"
+"go:github.com/pressly/goose/v3/cmd/goose" = "latest"
 
 [env]
 CGO_ENABLED = "1"

@@ -12,25 +12,18 @@ import (
 // GetCachedData retrieves cached data for a symbol and data type
 func (r *Repository) GetCachedData(ctx context.Context, symbol, dataType string) (map[string]interface{}, error) {
 	var data []byte
-	var expiresAt time.Time
 
+	// Let the database handle expiry check to avoid timezone issues
 	err := r.pool.QueryRow(ctx, `
-		SELECT data, expires_at FROM market_data_cache
-		WHERE symbol = $1 AND data_type = $2
-	`, symbol, dataType).Scan(&data, &expiresAt)
+		SELECT data FROM market_data_cache
+		WHERE symbol = $1 AND data_type = $2 AND expires_at > NOW()
+	`, symbol, dataType).Scan(&data)
 
 	if err == pgx.ErrNoRows {
 		return nil, nil
 	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to query cache: %w", err)
-	}
-
-	// Check if expired
-	if time.Now().After(expiresAt) {
-		// Delete expired entry
-		r.pool.Exec(ctx, `DELETE FROM market_data_cache WHERE symbol = $1 AND data_type = $2`, symbol, dataType)
-		return nil, nil
 	}
 
 	var result map[string]interface{}
@@ -48,14 +41,12 @@ func (r *Repository) SetCachedData(ctx context.Context, symbol, dataType string,
 		return fmt.Errorf("failed to marshal cache data: %w", err)
 	}
 
-	expiresAt := time.Now().Add(ttl)
-
 	_, err = r.pool.Exec(ctx, `
 		INSERT INTO market_data_cache (symbol, data_type, data, expires_at)
-		VALUES ($1, $2, $3, $4)
+		VALUES ($1, $2, $3, NOW() + $4::interval)
 		ON CONFLICT (symbol, data_type) 
-		DO UPDATE SET data = EXCLUDED.data, expires_at = EXCLUDED.expires_at, created_at = NOW()
-	`, symbol, dataType, jsonData, expiresAt)
+		DO UPDATE SET data = EXCLUDED.data, expires_at = NOW() + $4::interval, created_at = NOW()
+	`, symbol, dataType, jsonData, ttl.String())
 
 	if err != nil {
 		return fmt.Errorf("failed to set cache: %w", err)

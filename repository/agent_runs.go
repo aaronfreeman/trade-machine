@@ -48,11 +48,13 @@ func (r *Repository) UpdateAgentRun(ctx context.Context, run *models.AgentRun) e
 func (r *Repository) GetAgentRun(ctx context.Context, id uuid.UUID) (*models.AgentRun, error) {
 	var run models.AgentRun
 	var inputData, outputData []byte
+	var errorMessage *string
+	var durationMs *int
 
 	err := r.pool.QueryRow(ctx, `
 		SELECT id, agent_type, symbol, status, input_data, output_data, error_message, duration_ms, started_at, completed_at
 		FROM agent_runs WHERE id = $1
-	`, id).Scan(&run.ID, &run.AgentType, &run.Symbol, &run.Status, &inputData, &outputData, &run.ErrorMessage, &run.DurationMs, &run.StartedAt, &run.CompletedAt)
+	`, id).Scan(&run.ID, &run.AgentType, &run.Symbol, &run.Status, &inputData, &outputData, &errorMessage, &durationMs, &run.StartedAt, &run.CompletedAt)
 
 	if err == pgx.ErrNoRows {
 		return nil, nil
@@ -61,6 +63,12 @@ func (r *Repository) GetAgentRun(ctx context.Context, id uuid.UUID) (*models.Age
 		return nil, fmt.Errorf("failed to query agent run: %w", err)
 	}
 
+	if errorMessage != nil {
+		run.ErrorMessage = *errorMessage
+	}
+	if durationMs != nil {
+		run.DurationMs = *durationMs
+	}
 	if inputData != nil {
 		json.Unmarshal(inputData, &run.InputData)
 	}
@@ -106,12 +114,20 @@ func (r *Repository) GetAgentRuns(ctx context.Context, agentType models.AgentTyp
 	for rows.Next() {
 		var run models.AgentRun
 		var inputData, outputData []byte
+		var errorMessage *string
+		var durationMs *int
 
-		err := rows.Scan(&run.ID, &run.AgentType, &run.Symbol, &run.Status, &inputData, &outputData, &run.ErrorMessage, &run.DurationMs, &run.StartedAt, &run.CompletedAt)
+		err := rows.Scan(&run.ID, &run.AgentType, &run.Symbol, &run.Status, &inputData, &outputData, &errorMessage, &durationMs, &run.StartedAt, &run.CompletedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan agent run: %w", err)
 		}
 
+		if errorMessage != nil {
+			run.ErrorMessage = *errorMessage
+		}
+		if durationMs != nil {
+			run.DurationMs = *durationMs
+		}
 		if inputData != nil {
 			json.Unmarshal(inputData, &run.InputData)
 		}
@@ -147,12 +163,20 @@ func (r *Repository) GetRecentRunsForSymbol(ctx context.Context, symbol string, 
 	for rows.Next() {
 		var run models.AgentRun
 		var inputData, outputData []byte
+		var errorMessage *string
+		var durationMs *int
 
-		err := rows.Scan(&run.ID, &run.AgentType, &run.Symbol, &run.Status, &inputData, &outputData, &run.ErrorMessage, &run.DurationMs, &run.StartedAt, &run.CompletedAt)
+		err := rows.Scan(&run.ID, &run.AgentType, &run.Symbol, &run.Status, &inputData, &outputData, &errorMessage, &durationMs, &run.StartedAt, &run.CompletedAt)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan agent run: %w", err)
 		}
 
+		if errorMessage != nil {
+			run.ErrorMessage = *errorMessage
+		}
+		if durationMs != nil {
+			run.DurationMs = *durationMs
+		}
 		if inputData != nil {
 			json.Unmarshal(inputData, &run.InputData)
 		}

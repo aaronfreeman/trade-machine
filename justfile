@@ -42,3 +42,17 @@ check:
 # Watch templ files and regenerate
 watch:
     templ generate --watch
+
+migrate-up:
+	goose -dir migrations postgres "host=localhost port=5432 user=trademachine password=trademachine_dev dbname=trademachine sslmode=disable" up
+
+migrate-down:
+	goose -dir migrations postgres "host=localhost port=5432 user=trademachine password=trademachine_dev dbname=trademachine sslmode=disable" down
+
+docker-up:
+	docker-compose up -d
+	@echo "Waiting for PostgreSQL to be ready..."
+	@sleep 3
+
+docker-down:
+	docker-compose down

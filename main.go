@@ -14,13 +14,15 @@ var assets embed.FS
 
 func main() {
 	app := NewApp()
+	apiHandler := NewAPIHandler(app)
 
 	err := wails.Run(&options.App{
 		Title:  "Trade Machine",
 		Width:  1024,
 		Height: 768,
 		AssetServer: &assetserver.Options{
-			Assets: assets,
+			Assets:  assets,
+			Handler: apiHandler,
 		},
 		BackgroundColour: options.NewRGB(27, 38, 54),
 		OnStartup:        app.startup,

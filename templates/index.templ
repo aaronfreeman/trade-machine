@@ -2,13 +2,27 @@ package templates
 
 templ Index() {
 	@Layout("Trade Machine") {
-		<main>
-			<h1>Trade Machine</h1>
-			<div id="app">
-				<input type="text" id="name" placeholder="Enter your name"/>
-				<button id="greet-btn">Greet</button>
-				<p id="result"></p>
+		<main class="container">
+			<div class="row justify-content-center">
+				<div class="col-md-6">
+					<div class="card bg-secondary">
+						<div class="card-body text-center">
+							<h1 class="card-title mb-4">Trade Machine</h1>
+							<form hx-post="/api/greet" hx-target="#result" hx-swap="innerHTML">
+								<div class="mb-3">
+									<input type="text" name="name" class="form-control" placeholder="Enter your name"/>
+								</div>
+								<button type="submit" class="btn btn-primary">Greet</button>
+							</form>
+							<div id="result" class="mt-4 fs-4"></div>
+						</div>
+					</div>
+				</div>
 			</div>
 		</main>
 	}
+}
+
+templ GreetResult(message string) {
+	<span class="text-success">{ message }</span>
 }

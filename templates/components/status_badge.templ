@@ -1,0 +1,69 @@
+package components
+
+import "trade-machine/models"
+
+// StatusBadge renders a color-coded badge for recommendation status
+templ StatusBadge(status models.RecommendationStatus) {
+	switch status {
+		case models.RecommendationStatusPending:
+			<span class="badge badge-pending">
+				<i class="bi bi-hourglass-split me-1"></i>Pending
+			</span>
+		case models.RecommendationStatusApproved:
+			<span class="badge badge-approved">
+				<i class="bi bi-check-circle me-1"></i>Approved
+			</span>
+		case models.RecommendationStatusRejected:
+			<span class="badge badge-rejected">
+				<i class="bi bi-x-circle me-1"></i>Rejected
+			</span>
+		case models.RecommendationStatusExecuted:
+			<span class="badge badge-executed">
+				<i class="bi bi-lightning me-1"></i>Executed
+			</span>
+	}
+}
+
+// TradeStatusBadge renders a badge for trade status
+templ TradeStatusBadge(status string) {
+	switch status {
+		case "pending":
+			<span class="badge badge-pending">
+				<i class="bi bi-hourglass-split me-1"></i>Pending
+			</span>
+		case "executed":
+			<span class="badge badge-executed">
+				<i class="bi bi-check-circle me-1"></i>Executed
+			</span>
+		case "rejected":
+			<span class="badge badge-rejected">
+				<i class="bi bi-x-circle me-1"></i>Rejected
+			</span>
+		case "cancelled":
+			<span class="badge badge-rejected">
+				<i class="bi bi-slash-circle me-1"></i>Cancelled
+			</span>
+		default:
+			<span class="badge bg-secondary">{ status }</span>
+	}
+}
+
+// AgentStatusBadge renders a badge for agent run status
+templ AgentStatusBadge(status string) {
+	switch status {
+		case "running":
+			<span class="badge badge-pending">
+				<i class="bi bi-arrow-repeat me-1"></i>Running
+			</span>
+		case "completed":
+			<span class="badge badge-approved">
+				<i class="bi bi-check-circle me-1"></i>Completed
+			</span>
+		case "failed":
+			<span class="badge badge-rejected">
+				<i class="bi bi-x-circle me-1"></i>Failed
+			</span>
+		default:
+			<span class="badge bg-secondary">{ status }</span>
+	}
+}

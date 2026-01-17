@@ -1,0 +1,73 @@
+package components
+
+import "fmt"
+
+// ConfidenceBar renders a horizontal progress bar for confidence percentage
+templ ConfidenceBar(confidence float64) {
+	<div class="d-flex align-items-center gap-2">
+		<div class="confidence-bar flex-grow-1">
+			<div
+				class={ "confidence-fill", confidenceClass(confidence) }
+				style={ fmt.Sprintf("width: %.0f%%;", confidence) }
+			></div>
+		</div>
+		<span class={ "confidence-value", confidenceTextClass(confidence) }>
+			{ fmt.Sprintf("%.0f%%", confidence) }
+		</span>
+	</div>
+}
+
+// ConfidenceBarLabeled renders a confidence bar with a label
+templ ConfidenceBarLabeled(label string, confidence float64) {
+	<div class="mb-2">
+		<div class="d-flex justify-content-between mb-1">
+			<small class="text-muted">{ label }</small>
+			<small class={ confidenceTextClass(confidence) }>
+				{ fmt.Sprintf("%.0f%%", confidence) }
+			</small>
+		</div>
+		<div class="confidence-bar">
+			<div
+				class={ "confidence-fill", confidenceClass(confidence) }
+				style={ fmt.Sprintf("width: %.0f%%;", confidence) }
+			></div>
+		</div>
+	</div>
+}
+
+// ConfidenceBadge renders a small inline confidence indicator
+templ ConfidenceBadge(confidence float64) {
+	<span class={ "badge", confidenceBadgeClass(confidence) }>
+		{ fmt.Sprintf("%.0f%% confidence", confidence) }
+	</span>
+}
+
+func confidenceClass(confidence float64) string {
+	if confidence >= 60 {
+		return "confidence-high"
+	}
+	if confidence >= 30 {
+		return "confidence-medium"
+	}
+	return "confidence-low"
+}
+
+func confidenceTextClass(confidence float64) string {
+	if confidence >= 60 {
+		return "text-success"
+	}
+	if confidence >= 30 {
+		return "text-warning"
+	}
+	return "text-danger"
+}
+
+func confidenceBadgeClass(confidence float64) string {
+	if confidence >= 60 {
+		return "badge-approved"
+	}
+	if confidence >= 30 {
+		return "badge-pending"
+	}
+	return "badge-rejected"
+}

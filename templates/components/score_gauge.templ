@@ -1,0 +1,62 @@
+package components
+
+import "fmt"
+
+// ScoreGauge renders a visual score display from -100 to +100
+templ ScoreGauge(score float64) {
+	<div class="score-gauge">
+		<div class="score-bar">
+			if score > 0 {
+				<div
+					class="score-bar-fill bullish"
+					style={ fmt.Sprintf("width: %.1f%%;", score/2) }
+				></div>
+			} else if score < 0 {
+				<div
+					class="score-bar-fill bearish"
+					style={ fmt.Sprintf("width: %.1f%%; right: 50%%;", -score/2) }
+				></div>
+			}
+			<div class="score-bar-center"></div>
+		</div>
+		<span class={ "score-value", scoreColorClass(score) }>
+			{ formatScore(score) }
+		</span>
+	</div>
+}
+
+// ScoreValue renders just the score number with appropriate color
+templ ScoreValue(score float64) {
+	<span class={ scoreColorClass(score) }>
+		{ formatScore(score) }
+	</span>
+}
+
+// ScoreCard renders a labeled score card for agent breakdowns
+templ ScoreCard(label string, score float64, agentClass string) {
+	<div class="score-card">
+		<div class={ "score-card-label", agentClass }>
+			{ label }
+		</div>
+		<div class={ "score-card-value", scoreColorClass(score) }>
+			{ formatScore(score) }
+		</div>
+	</div>
+}
+
+func scoreColorClass(score float64) string {
+	if score > 25 {
+		return "score-bullish"
+	}
+	if score < -25 {
+		return "score-bearish"
+	}
+	return "score-neutral"
+}
+
+func formatScore(score float64) string {
+	if score > 0 {
+		return fmt.Sprintf("+%.1f", score)
+	}
+	return fmt.Sprintf("%.1f", score)
+}

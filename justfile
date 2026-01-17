@@ -13,7 +13,7 @@ generate:
     templ generate
 
 # Run in development mode
-dev: generate
+start: generate
     wails dev
 
 # Build for production

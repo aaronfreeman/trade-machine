@@ -18,7 +18,7 @@ func testConfig() *config.Config {
 }
 
 // testApp creates an App with test config for testing
-func testApp(repo *repository.Repository) *App {
+func testApp(repo AppRepositoryInterface) *App {
 	return NewApp(testConfig(), repo, nil, nil)
 }
 
@@ -27,15 +27,22 @@ func testHandler(app *App) *APIHandler {
 	return NewAPIHandler(app, testConfig())
 }
 
+// testRouter creates a Chi router with test config for testing
+func testRouter(app *App) http.Handler {
+	cfg := testConfig()
+	handler := NewAPIHandler(app, cfg)
+	return NewRouter(handler, cfg)
+}
+
 func TestAPIHandler_Index(t *testing.T) {
 	t.Run("serves templ index at root", func(t *testing.T) {
 		app := testApp(nil)
-		handler := testHandler(app)
+		router := testRouter(app)
 
 		req := httptest.NewRequest(http.MethodGet, "/", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("expected status 200, got %d", w.Code)
@@ -54,12 +61,12 @@ func TestAPIHandler_Index(t *testing.T) {
 
 	t.Run("serves templ index at /index.html", func(t *testing.T) {
 		app := testApp(nil)
-		handler := testHandler(app)
+		router := testRouter(app)
 
 		req := httptest.NewRequest(http.MethodGet, "/index.html", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("expected status 200, got %d", w.Code)
@@ -68,12 +75,12 @@ func TestAPIHandler_Index(t *testing.T) {
 
 	t.Run("index method not allowed", func(t *testing.T) {
 		app := testApp(nil)
-		handler := testHandler(app)
+		router := testRouter(app)
 
 		req := httptest.NewRequest(http.MethodPost, "/", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusMethodNotAllowed {
 			t.Errorf("expected status 405, got %d", w.Code)
@@ -82,54 +89,40 @@ func TestAPIHandler_Index(t *testing.T) {
 }
 
 func TestAPIHandler_Health(t *testing.T) {
-	tests := []struct {
-		name           string
-		repo           *repository.Repository
-		expectedStatus string
-	}{
-		{
-			name:           "health check without database",
-			repo:           nil,
-			expectedStatus: "ok",
-		},
-	}
+	t.Run("health check without database", func(t *testing.T) {
+		app := testApp(nil) // Pass untyped nil directly
+		router := testRouter(app)
 
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			app := testApp(tt.repo)
-			handler := testHandler(app)
+		req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+		w := httptest.NewRecorder()
 
-			req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
-			w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
 
-			handler.ServeHTTP(w, req)
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status 200, got %d", w.Code)
+		}
 
-			if w.Code != http.StatusOK {
-				t.Errorf("expected status 200, got %d", w.Code)
-			}
+		var response map[string]interface{}
+		if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
+			t.Fatalf("failed to decode response: %v", err)
+		}
 
-			var response map[string]interface{}
-			if err := json.NewDecoder(w.Body).Decode(&response); err != nil {
-				t.Fatalf("failed to decode response: %v", err)
-			}
-
-			if status, ok := response["status"].(string); !ok || status != tt.expectedStatus {
-				t.Errorf("expected status %s, got %v", tt.expectedStatus, response["status"])
-			}
-		})
-	}
+		if status, ok := response["status"].(string); !ok || status != "ok" {
+			t.Errorf("expected status ok, got %v", response["status"])
+		}
+	})
 }
 
 func TestAPIHandler_AnalyzeStock(t *testing.T) {
 	t.Run("missing symbol", func(t *testing.T) {
 		app := testApp(nil)
-		handler := testHandler(app)
+		router := testRouter(app)
 
 		req := httptest.NewRequest(http.MethodPost, "/api/analyze", strings.NewReader("{}"))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusBadRequest {
 			t.Errorf("expected status 400, got %d", w.Code)
@@ -138,13 +131,13 @@ func TestAPIHandler_AnalyzeStock(t *testing.T) {
 
 	t.Run("portfolio manager not initialized", func(t *testing.T) {
 		app := testApp(nil)
-		handler := testHandler(app)
+		router := testRouter(app)
 
 		req := httptest.NewRequest(http.MethodPost, "/api/analyze", strings.NewReader(`{"symbol":"AAPL"}`))
 		req.Header.Set("Content-Type", "application/json")
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusInternalServerError {
 			t.Errorf("expected status 500, got %d", w.Code)
@@ -155,12 +148,12 @@ func TestAPIHandler_AnalyzeStock(t *testing.T) {
 func TestAPIHandler_GetRecommendations(t *testing.T) {
 	t.Run("database not initialized", func(t *testing.T) {
 		app := testApp(nil)
-		handler := testHandler(app)
+		router := testRouter(app)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/recommendations", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusInternalServerError {
 			t.Errorf("expected status 500, got %d", w.Code)
@@ -169,12 +162,12 @@ func TestAPIHandler_GetRecommendations(t *testing.T) {
 
 	t.Run("with limit parameter", func(t *testing.T) {
 		app := testApp(nil)
-		handler := testHandler(app)
+		router := testRouter(app)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/recommendations?limit=10", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusInternalServerError {
 			t.Errorf("expected status 500, got %d", w.Code)
@@ -194,12 +187,12 @@ func TestAPIHandler_ApproveRecommendation(t *testing.T) {
 
 		app := testApp(repo)
 		app.startup(ctx)
-		handler := testHandler(app)
+		router := testRouter(app)
 
 		req := httptest.NewRequest(http.MethodPost, "/api/recommendations/invalid-uuid/approve", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusInternalServerError {
 			t.Errorf("expected status 500, got %d", w.Code)
@@ -210,12 +203,12 @@ func TestAPIHandler_ApproveRecommendation(t *testing.T) {
 func TestAPIHandler_GetPositions(t *testing.T) {
 	t.Run("database not initialized", func(t *testing.T) {
 		app := testApp(nil)
-		handler := testHandler(app)
+		router := testRouter(app)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/positions", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusInternalServerError {
 			t.Errorf("expected status 500, got %d", w.Code)
@@ -226,12 +219,12 @@ func TestAPIHandler_GetPositions(t *testing.T) {
 func TestAPIHandler_GetTrades(t *testing.T) {
 	t.Run("database not initialized", func(t *testing.T) {
 		app := testApp(nil)
-		handler := testHandler(app)
+		router := testRouter(app)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/trades", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusInternalServerError {
 			t.Errorf("expected status 500, got %d", w.Code)
@@ -240,12 +233,12 @@ func TestAPIHandler_GetTrades(t *testing.T) {
 
 	t.Run("with limit parameter", func(t *testing.T) {
 		app := testApp(nil)
-		handler := testHandler(app)
+		router := testRouter(app)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/trades?limit=25", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusInternalServerError {
 			t.Errorf("expected status 500, got %d", w.Code)
@@ -256,12 +249,12 @@ func TestAPIHandler_GetTrades(t *testing.T) {
 func TestAPIHandler_GetAgentRuns(t *testing.T) {
 	t.Run("database not initialized", func(t *testing.T) {
 		app := testApp(nil)
-		handler := testHandler(app)
+		router := testRouter(app)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/agents/runs", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusInternalServerError {
 			t.Errorf("expected status 500, got %d", w.Code)
@@ -271,12 +264,12 @@ func TestAPIHandler_GetAgentRuns(t *testing.T) {
 
 func TestAPIHandler_NotFound(t *testing.T) {
 	app := testApp(nil)
-	handler := testHandler(app)
+	router := testRouter(app)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/nonexistent", nil)
 	w := httptest.NewRecorder()
 
-	handler.ServeHTTP(w, req)
+	router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusNotFound {
 		t.Errorf("expected status 404, got %d", w.Code)
@@ -285,12 +278,12 @@ func TestAPIHandler_NotFound(t *testing.T) {
 
 func TestAPIHandler_MethodNotAllowed(t *testing.T) {
 	app := testApp(nil)
-	handler := testHandler(app)
+	router := testRouter(app)
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/health", nil)
 	w := httptest.NewRecorder()
 
-	handler.ServeHTTP(w, req)
+	router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusMethodNotAllowed {
 		t.Errorf("expected status 405, got %d", w.Code)
@@ -481,7 +474,7 @@ func TestAPIHandler_ValidateSymbol(t *testing.T) {
 
 func TestAPIHandler_AnalyzeStock_InvalidSymbol(t *testing.T) {
 	app := testApp(nil)
-	handler := testHandler(app)
+	router := testRouter(app)
 
 	tests := []struct {
 		name   string
@@ -499,7 +492,7 @@ func TestAPIHandler_AnalyzeStock_InvalidSymbol(t *testing.T) {
 			req.Header.Set("Content-Type", "application/json")
 			w := httptest.NewRecorder()
 
-			handler.ServeHTTP(w, req)
+			router.ServeHTTP(w, req)
 
 			if w.Code != http.StatusBadRequest {
 				t.Errorf("expected status 400, got %d", w.Code)
@@ -532,12 +525,12 @@ func TestApp_GetAgentRuns(t *testing.T) {
 func TestAPIHandler_GetPendingRecommendations(t *testing.T) {
 	t.Run("database not initialized", func(t *testing.T) {
 		app := testApp(nil)
-		handler := testHandler(app)
+		router := testRouter(app)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/recommendations/pending", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusInternalServerError {
 			t.Errorf("expected status 500, got %d", w.Code)
@@ -548,12 +541,12 @@ func TestAPIHandler_GetPendingRecommendations(t *testing.T) {
 func TestAPIHandler_RejectRecommendation(t *testing.T) {
 	t.Run("database not initialized", func(t *testing.T) {
 		app := testApp(nil)
-		handler := testHandler(app)
+		router := testRouter(app)
 
 		req := httptest.NewRequest(http.MethodPost, "/api/recommendations/550e8400-e29b-41d4-a716-446655440000/reject", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusInternalServerError {
 			t.Errorf("expected status 500, got %d", w.Code)
@@ -562,12 +555,12 @@ func TestAPIHandler_RejectRecommendation(t *testing.T) {
 
 	t.Run("invalid UUID", func(t *testing.T) {
 		app := testApp(nil)
-		handler := testHandler(app)
+		router := testRouter(app)
 
 		req := httptest.NewRequest(http.MethodPost, "/api/recommendations/invalid-uuid/reject", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusInternalServerError {
 			t.Errorf("expected status 500, got %d", w.Code)
@@ -579,12 +572,12 @@ func TestAPIHandler_RejectRecommendation(t *testing.T) {
 func TestAPIHandler_GetPortfolio(t *testing.T) {
 	t.Run("database not initialized", func(t *testing.T) {
 		app := testApp(nil)
-		handler := testHandler(app)
+		router := testRouter(app)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/portfolio", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusInternalServerError {
 			t.Errorf("expected status 500, got %d", w.Code)
@@ -632,13 +625,13 @@ func TestIntegration_WithDatabase(t *testing.T) {
 
 	app := testApp(repo)
 	app.startup(ctx)
-	handler := testHandler(app)
+	router := testRouter(app)
 
 	t.Run("get recommendations with database", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/recommendations?limit=5", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("expected status 200, got %d", w.Code)
@@ -649,7 +642,7 @@ func TestIntegration_WithDatabase(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/recommendations/pending", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("expected status 200, got %d", w.Code)
@@ -660,7 +653,7 @@ func TestIntegration_WithDatabase(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/positions", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("expected status 200, got %d", w.Code)
@@ -671,7 +664,7 @@ func TestIntegration_WithDatabase(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/portfolio", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("expected status 200, got %d", w.Code)
@@ -682,7 +675,7 @@ func TestIntegration_WithDatabase(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/trades?limit=10", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("expected status 200, got %d", w.Code)
@@ -693,7 +686,7 @@ func TestIntegration_WithDatabase(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/agents/runs?limit=10", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("expected status 200, got %d", w.Code)
@@ -704,7 +697,7 @@ func TestIntegration_WithDatabase(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("expected status 200, got %d", w.Code)
@@ -729,7 +722,7 @@ func TestIntegration_WithDatabase(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/api/recommendations/550e8400-e29b-41d4-a716-446655440000/approve", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("expected status 200, got %d", w.Code)
@@ -740,7 +733,7 @@ func TestIntegration_WithDatabase(t *testing.T) {
 		req := httptest.NewRequest(http.MethodPost, "/api/recommendations/550e8400-e29b-41d4-a716-446655440000/reject", nil)
 		w := httptest.NewRecorder()
 
-		handler.ServeHTTP(w, req)
+		router.ServeHTTP(w, req)
 
 		if w.Code != http.StatusOK {
 			t.Errorf("expected status 200, got %d", w.Code)
@@ -750,7 +743,7 @@ func TestIntegration_WithDatabase(t *testing.T) {
 
 func TestAPIHandler_MethodsNotAllowed(t *testing.T) {
 	app := testApp(nil)
-	handler := testHandler(app)
+	router := testRouter(app)
 
 	tests := []struct {
 		name   string
@@ -768,7 +761,7 @@ func TestAPIHandler_MethodsNotAllowed(t *testing.T) {
 			req := httptest.NewRequest(tt.method, tt.path, nil)
 			w := httptest.NewRecorder()
 
-			handler.ServeHTTP(w, req)
+			router.ServeHTTP(w, req)
 
 			if w.Code != http.StatusMethodNotAllowed {
 				t.Errorf("expected status 405, got %d", w.Code)
@@ -779,12 +772,12 @@ func TestAPIHandler_MethodsNotAllowed(t *testing.T) {
 
 func TestAPIHandler_CORSHeaders(t *testing.T) {
 	app := testApp(nil)
-	handler := testHandler(app)
+	router := testRouter(app)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
 	w := httptest.NewRecorder()
 
-	handler.ServeHTTP(w, req)
+	router.ServeHTTP(w, req)
 
 	if w.Header().Get("Access-Control-Allow-Origin") == "" {
 		t.Error("missing CORS Allow-Origin header")
@@ -793,12 +786,12 @@ func TestAPIHandler_CORSHeaders(t *testing.T) {
 
 func TestAPIHandler_OptionsRequest(t *testing.T) {
 	app := testApp(nil)
-	handler := testHandler(app)
+	router := testRouter(app)
 
 	req := httptest.NewRequest(http.MethodOptions, "/api/health", nil)
 	w := httptest.NewRecorder()
 
-	handler.ServeHTTP(w, req)
+	router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected status 200 for OPTIONS, got %d", w.Code)
@@ -826,12 +819,12 @@ func TestAPIHandler_GetRecommendations_WithStatus(t *testing.T) {
 
 	app := testApp(repo)
 	app.startup(ctx)
-	handler := testHandler(app)
+	router := testRouter(app)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/recommendations?status=pending&limit=10", nil)
 	w := httptest.NewRecorder()
 
-	handler.ServeHTTP(w, req)
+	router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected status 200, got %d", w.Code)
@@ -840,13 +833,13 @@ func TestAPIHandler_GetRecommendations_WithStatus(t *testing.T) {
 
 func TestAPIHandler_AnalyzeStock_InvalidJSON(t *testing.T) {
 	app := testApp(nil)
-	handler := testHandler(app)
+	router := testRouter(app)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/analyze", strings.NewReader("invalid json"))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
-	handler.ServeHTTP(w, req)
+	router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusBadRequest {
 		t.Errorf("expected status 400, got %d", w.Code)
@@ -864,12 +857,12 @@ func TestAPIHandler_GetAgentRuns_WithType(t *testing.T) {
 
 	app := testApp(repo)
 	app.startup(ctx)
-	handler := testHandler(app)
+	router := testRouter(app)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/agents/runs?type=fundamental&limit=10", nil)
 	w := httptest.NewRecorder()
 
-	handler.ServeHTTP(w, req)
+	router.ServeHTTP(w, req)
 
 	if w.Code != http.StatusOK {
 		t.Errorf("expected status 200, got %d", w.Code)

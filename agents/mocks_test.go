@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"trade-machine/models"
+	"trade-machine/services"
 
 	marketdata "github.com/alpacahq/alpaca-trade-api-go/v3/marketdata"
 	"github.com/shopspring/decimal"
@@ -16,6 +17,17 @@ type mockBedrockService struct {
 }
 
 func (m *mockBedrockService) InvokeWithPrompt(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
+	if m.err != nil {
+		return "", m.err
+	}
+	return m.response, nil
+}
+
+func (m *mockBedrockService) InvokeStructured(ctx context.Context, systemPrompt, userPrompt string, result interface{}) error {
+	return m.err
+}
+
+func (m *mockBedrockService) Chat(ctx context.Context, systemPrompt string, messages []services.ClaudeMessage) (string, error) {
 	if m.err != nil {
 		return "", m.err
 	}

@@ -105,6 +105,7 @@ func main() {
 	// Initialize app
 	app := NewApp(cfg, repo, portfolioManager, alpacaService)
 	apiHandler := NewAPIHandler(app, cfg)
+	router := NewRouter(apiHandler, cfg)
 
 	// Run Wails application
 	err = wails.Run(&options.App{
@@ -112,7 +113,7 @@ func main() {
 		Width:  1280,
 		Height: 800,
 		AssetServer: &assetserver.Options{
-			Handler: apiHandler,
+			Handler: router,
 		},
 		BackgroundColour: options.NewRGB(27, 38, 54),
 		OnStartup:        app.startup,

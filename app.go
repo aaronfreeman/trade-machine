@@ -4,27 +4,43 @@ import (
 	"context"
 	"fmt"
 
-	"trade-machine/agents"
 	"trade-machine/config"
 	"trade-machine/models"
-	"trade-machine/repository"
 	"trade-machine/services"
 
 	"github.com/google/uuid"
 )
 
-// App struct
+// AppRepositoryInterface defines the repository operations needed by App
+type AppRepositoryInterface interface {
+	Close()
+	Health(ctx context.Context) error
+	GetRecommendations(ctx context.Context, status models.RecommendationStatus, limit int) ([]models.Recommendation, error)
+	GetPendingRecommendations(ctx context.Context) ([]models.Recommendation, error)
+	ApproveRecommendation(ctx context.Context, id uuid.UUID) error
+	RejectRecommendation(ctx context.Context, id uuid.UUID) error
+	GetPositions(ctx context.Context) ([]models.Position, error)
+	GetTrades(ctx context.Context, limit int) ([]models.Trade, error)
+	GetAgentRuns(ctx context.Context, agentType models.AgentType, limit int) ([]models.AgentRun, error)
+}
+
+// PortfolioManagerInterface defines the analysis operations
+type PortfolioManagerInterface interface {
+	AnalyzeSymbol(ctx context.Context, symbol string) (*models.Recommendation, error)
+}
+
+// App struct holds application dependencies using interfaces for testability
 type App struct {
 	ctx              context.Context
 	cfg              *config.Config
-	repo             *repository.Repository
-	portfolioManager *agents.PortfolioManager
-	alpacaService    *services.AlpacaService
+	repo             AppRepositoryInterface
+	portfolioManager PortfolioManagerInterface
+	alpacaService    services.AlpacaServiceInterface
 	analysisSem      chan struct{}
 }
 
 // NewApp creates a new App application struct
-func NewApp(cfg *config.Config, repo *repository.Repository, manager *agents.PortfolioManager, alpaca *services.AlpacaService) *App {
+func NewApp(cfg *config.Config, repo AppRepositoryInterface, manager PortfolioManagerInterface, alpaca services.AlpacaServiceInterface) *App {
 	return &App{
 		cfg:              cfg,
 		repo:             repo,

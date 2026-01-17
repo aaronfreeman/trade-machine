@@ -9,21 +9,27 @@ import (
 	"trade-machine/config"
 	"trade-machine/models"
 	"trade-machine/observability"
-	"trade-machine/repository"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 )
 
+// PortfolioManagerRepository defines the repository operations needed by PortfolioManager
+type PortfolioManagerRepository interface {
+	CreateAgentRun(ctx context.Context, run *models.AgentRun) error
+	UpdateAgentRun(ctx context.Context, run *models.AgentRun) error
+	CreateRecommendation(ctx context.Context, rec *models.Recommendation) error
+}
+
 // PortfolioManager orchestrates all agents and generates recommendations
 type PortfolioManager struct {
 	agents []Agent
-	repo   *repository.Repository
+	repo   PortfolioManagerRepository
 	cfg    *config.Config
 }
 
 // NewPortfolioManager creates a new PortfolioManager
-func NewPortfolioManager(repo *repository.Repository, cfg *config.Config) *PortfolioManager {
+func NewPortfolioManager(repo PortfolioManagerRepository, cfg *config.Config) *PortfolioManager {
 	return &PortfolioManager{
 		agents: make([]Agent, 0),
 		repo:   repo,

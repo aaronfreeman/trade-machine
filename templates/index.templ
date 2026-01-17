@@ -2,27 +2,149 @@ package templates
 
 templ Index() {
 	@Layout("Trade Machine") {
-		<main class="container">
-			<div class="row justify-content-center">
-				<div class="col-md-6">
-					<div class="card bg-secondary">
-						<div class="card-body text-center">
-							<h1 class="card-title mb-4">Trade Machine</h1>
-							<form hx-post="/api/greet" hx-target="#result" hx-swap="innerHTML">
-								<div class="mb-3">
-									<input type="text" name="name" class="form-control" placeholder="Enter your name"/>
-								</div>
-								<button type="submit" class="btn btn-primary">Greet</button>
-							</form>
-							<div id="result" class="mt-4 fs-4"></div>
+		<div class="container-fluid">
+			<div class="row">
+				<!-- Sidebar Navigation -->
+				<div class="col-md-3 col-lg-2 bg-secondary vh-100 position-sticky top-0 pt-3">
+					<ul class="nav nav-pills flex-column">
+						<li class="nav-item">
+							<a class="nav-link active" href="#" onclick="showSection('analyze'); return false;">
+								<i class="bi bi-search me-2"></i>
+								Analyze Stock
+							</a>
+						</li>
+						<li class="nav-item">
+							<a class="nav-link" href="#" onclick="showSection('recommendations'); return false;">
+								<i class="bi bi-lightbulb me-2"></i>
+								Recommendations
+							</a>
+						</li>
+						<li class="nav-item">
+							<a class="nav-link" href="#" onclick="showSection('portfolio'); return false;">
+								<i class="bi bi-briefcase me-2"></i>
+								Portfolio
+							</a>
+						</li>
+						<li class="nav-item">
+							<a class="nav-link" href="#" onclick="showSection('trades'); return false;">
+								<i class="bi bi-arrow-left-right me-2"></i>
+								Trades
+							</a>
+						</li>
+						<li class="nav-item">
+							<a class="nav-link" href="#" onclick="showSection('agents'); return false;">
+								<i class="bi bi-robot me-2"></i>
+								Agent Runs
+							</a>
+						</li>
+					</ul>
+				</div>
+				<!-- Main Content -->
+				<div class="col-md-9 col-lg-10 p-4">
+					<!-- Analyze Section -->
+					<div id="analyze" class="section active">
+						<h2 class="mb-4">
+							<i class="bi bi-search"></i>
+							Analyze Stock
+						</h2>
+						<div class="card">
+							<div class="card-body">
+								<p class="text-muted">Enter a stock symbol to run AI-powered analysis using fundamental, technical, and sentiment agents.</p>
+								<form hx-post="/api/analyze" hx-target="#analyze-result" hx-swap="innerHTML" hx-indicator="#analyze-spinner">
+									<div class="row g-3 align-items-end">
+										<div class="col-auto">
+											<label for="symbol" class="form-label">Stock Symbol</label>
+											<input type="text" name="symbol" id="symbol" class="form-control" placeholder="AAPL" style="width: 150px;" required/>
+										</div>
+										<div class="col-auto">
+											<button type="submit" class="btn btn-primary">
+												<i class="bi bi-cpu me-2"></i>
+												Analyze
+											</button>
+										</div>
+										<div class="col-auto">
+											<div id="analyze-spinner" class="spinner-border text-primary htmx-indicator" role="status">
+												<span class="visually-hidden">Loading...</span>
+											</div>
+										</div>
+									</div>
+								</form>
+								<div id="analyze-result" class="mt-4"></div>
+							</div>
+						</div>
+					</div>
+					<!-- Recommendations Section -->
+					<div id="recommendations" class="section">
+						<h2 class="mb-4">
+							<i class="bi bi-lightbulb"></i>
+							Recommendations
+						</h2>
+						<div class="mb-3">
+							<button class="btn btn-primary" hx-get="/api/recommendations/pending" hx-target="#recommendations-list" hx-swap="innerHTML">
+								<i class="bi bi-hourglass-split me-2"></i>
+								Show Pending
+							</button>
+							<button class="btn btn-secondary" hx-get="/api/recommendations?limit=50" hx-target="#recommendations-list" hx-swap="innerHTML">
+								<i class="bi bi-list-ul me-2"></i>
+								Show All
+							</button>
+						</div>
+						<div id="recommendations-list" class="card">
+							<div class="card-body text-center text-muted">
+								Click a button above to load recommendations
+							</div>
+						</div>
+					</div>
+					<!-- Portfolio Section -->
+					<div id="portfolio" class="section">
+						<h2 class="mb-4">
+							<i class="bi bi-briefcase"></i>
+							Portfolio
+						</h2>
+						<button class="btn btn-primary mb-3" hx-get="/api/positions" hx-target="#portfolio-list" hx-swap="innerHTML">
+							<i class="bi bi-arrow-clockwise me-2"></i>
+							Refresh Positions
+						</button>
+						<div id="portfolio-list" class="card">
+							<div class="card-body text-center text-muted">
+								Click refresh to load positions
+							</div>
+						</div>
+					</div>
+					<!-- Trades Section -->
+					<div id="trades" class="section">
+						<h2 class="mb-4">
+							<i class="bi bi-arrow-left-right"></i>
+							Recent Trades
+						</h2>
+						<button class="btn btn-primary mb-3" hx-get="/api/trades?limit=50" hx-target="#trades-list" hx-swap="innerHTML">
+							<i class="bi bi-arrow-clockwise me-2"></i>
+							Refresh Trades
+						</button>
+						<div id="trades-list" class="card">
+							<div class="card-body text-center text-muted">
+								Click refresh to load trades
+							</div>
+						</div>
+					</div>
+					<!-- Agent Runs Section -->
+					<div id="agents" class="section">
+						<h2 class="mb-4">
+							<i class="bi bi-robot"></i>
+							Agent Runs
+						</h2>
+						<button class="btn btn-primary mb-3" hx-get="/api/agents/runs?limit=50" hx-target="#agents-list" hx-swap="innerHTML">
+							<i class="bi bi-arrow-clockwise me-2"></i>
+							Refresh Agent Runs
+						</button>
+						<div id="agents-list" class="card">
+							<div class="card-body text-center text-muted">
+								Click refresh to load agent runs
+							</div>
 						</div>
 					</div>
 				</div>
 			</div>
-		</main>
+		</div>
 	}
-}
-
-templ GreetResult(message string) {
-	<span class="text-success">{ message }</span>
 }

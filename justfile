@@ -1,5 +1,8 @@
 # trade-machine justfile
 
+# Load environment variables from .env
+set dotenv-load
+
 # Default recipe
 default:
     @just --list
@@ -14,7 +17,7 @@ generate:
 
 # Run in development mode
 start: generate
-    wails dev
+    wails dev -devserver "localhost:$DEV_PORT"
 
 # Build for production
 build: generate

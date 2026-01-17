@@ -1,0 +1,107 @@
+package partials
+
+import (
+	"fmt"
+	"trade-machine/models"
+	"trade-machine/templates/components"
+)
+
+// AgentRunsList renders a list of agent run cards
+templ AgentRunsList(runs []models.AgentRun) {
+	if len(runs) == 0 {
+		@components.EmptyAgentRuns()
+	} else {
+		<div class="fade-in">
+			for _, run := range runs {
+				@agentRunCard(run)
+			}
+		</div>
+	}
+}
+
+templ agentRunCard(run models.AgentRun) {
+	<div class="card mb-3">
+		<div class="card-body">
+			<!-- Header -->
+			<div class="d-flex justify-content-between align-items-start mb-2">
+				<div class="d-flex align-items-center gap-2">
+					@agentTypeBadge(run.AgentType)
+					if run.Symbol != "" {
+						<span class="fw-bold">{ run.Symbol }</span>
+					}
+				</div>
+				<div class="d-flex align-items-center gap-2">
+					@components.AgentStatusBadge(string(run.Status))
+					<small class="text-muted">{ formatTime(run.StartedAt) }</small>
+				</div>
+			</div>
+
+			<!-- Duration -->
+			<div class="d-flex align-items-center gap-3 text-muted small">
+				<span>
+					<i class="bi bi-clock me-1"></i>
+					{ formatDuration(run.DurationMs) }
+				</span>
+				if run.Status == models.AgentRunStatusCompleted {
+					if score, ok := run.OutputData["score"].(float64); ok {
+						<span>
+							<i class="bi bi-speedometer2 me-1"></i>
+							Score: <span class={ scoreColorClass(score) }>{ formatScore(score) }</span>
+						</span>
+					}
+					if confidence, ok := run.OutputData["confidence"].(float64); ok {
+						<span>
+							<i class="bi bi-bar-chart me-1"></i>
+							Confidence: { fmt.Sprintf("%.0f%%", confidence) }
+						</span>
+					}
+				}
+			</div>
+
+			<!-- Error Message -->
+			if run.Status == models.AgentRunStatusFailed && run.ErrorMessage != "" {
+				<div class="alert alert-danger mt-3 mb-0 py-2">
+					<i class="bi bi-exclamation-triangle me-2"></i>
+					{ run.ErrorMessage }
+				</div>
+			}
+		</div>
+	</div>
+}
+
+templ agentTypeBadge(agentType models.AgentType) {
+	switch agentType {
+		case models.AgentTypeFundamental:
+			<span class="badge" style="background-color: rgba(88, 166, 255, 0.15); color: var(--accent-primary);">
+				<i class="bi bi-bank me-1"></i>Fundamental
+			</span>
+		case models.AgentTypeTechnical:
+			<span class="badge" style="background-color: rgba(137, 87, 229, 0.15); color: var(--accent-purple);">
+				<i class="bi bi-graph-up me-1"></i>Technical
+			</span>
+		case models.AgentTypeNews:
+			<span class="badge" style="background-color: rgba(210, 153, 34, 0.15); color: var(--color-hold);">
+				<i class="bi bi-newspaper me-1"></i>News
+			</span>
+		case models.AgentTypeManager:
+			<span class="badge" style="background-color: rgba(63, 185, 80, 0.15); color: var(--color-buy);">
+				<i class="bi bi-people me-1"></i>Manager
+			</span>
+		default:
+			<span class="badge bg-secondary">
+				{ string(agentType) }
+			</span>
+	}
+}
+
+func formatDuration(ms int) string {
+	if ms < 1000 {
+		return fmt.Sprintf("%dms", ms)
+	}
+	seconds := float64(ms) / 1000
+	if seconds < 60 {
+		return fmt.Sprintf("%.1fs", seconds)
+	}
+	minutes := seconds / 60
+	return fmt.Sprintf("%.1fm", minutes)
+}

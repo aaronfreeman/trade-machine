@@ -1,0 +1,100 @@
+package partials
+
+import (
+	"fmt"
+	"time"
+	"trade-machine/models"
+	"trade-machine/templates/components"
+)
+
+// TradesList renders the trades table
+templ TradesList(trades []models.Trade) {
+	if len(trades) == 0 {
+		@components.EmptyTrades()
+	} else {
+		<div class="fade-in">
+			<div class="table-responsive">
+				<table class="table table-hover mb-0">
+					<thead>
+						<tr>
+							<th>Symbol</th>
+							<th>Side</th>
+							<th class="text-end">Quantity</th>
+							<th class="text-end">Price</th>
+							<th class="text-end">Total</th>
+							<th>Status</th>
+							<th>Time</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, trade := range trades {
+							@tradeRow(trade)
+						}
+					</tbody>
+				</table>
+			</div>
+		</div>
+	}
+}
+
+templ tradeRow(trade models.Trade) {
+	<tr>
+		<td>
+			<span class="fw-bold">{ trade.Symbol }</span>
+		</td>
+		<td>
+			if trade.Side == models.TradeSideBuy {
+				<span class="badge badge-buy">Buy</span>
+			} else {
+				<span class="badge badge-sell">Sell</span>
+			}
+		</td>
+		<td class="text-end">{ trade.Quantity.String() }</td>
+		<td class="text-end">{ formatMoney(trade.Price) }</td>
+		<td class="text-end">{ formatMoney(trade.TotalValue) }</td>
+		<td>
+			@components.TradeStatusBadge(string(trade.Status))
+		</td>
+		<td class="text-muted">
+			{ formatTradeTime(trade) }
+		</td>
+	</tr>
+}
+
+func formatTradeTime(trade models.Trade) string {
+	if trade.ExecutedAt != nil {
+		return formatTime(*trade.ExecutedAt)
+	}
+	return formatTime(trade.CreatedAt)
+}
+
+func formatTime(t time.Time) string {
+	now := time.Now()
+	diff := now.Sub(t)
+
+	if diff < time.Minute {
+		return "just now"
+	}
+	if diff < time.Hour {
+		mins := int(diff.Minutes())
+		if mins == 1 {
+			return "1 min ago"
+		}
+		return fmt.Sprintf("%d mins ago", mins)
+	}
+	if diff < 24*time.Hour {
+		hours := int(diff.Hours())
+		if hours == 1 {
+			return "1 hour ago"
+		}
+		return fmt.Sprintf("%d hours ago", hours)
+	}
+	if diff < 7*24*time.Hour {
+		days := int(diff.Hours() / 24)
+		if days == 1 {
+			return "1 day ago"
+		}
+		return fmt.Sprintf("%d days ago", days)
+	}
+	return t.Format("Jan 2, 2006")
+}

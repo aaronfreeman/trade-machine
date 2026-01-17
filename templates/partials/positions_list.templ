@@ -1,0 +1,122 @@
+package partials
+
+import (
+	"fmt"
+	"trade-machine/models"
+	"trade-machine/templates/components"
+	"github.com/shopspring/decimal"
+)
+
+// PositionsList renders the portfolio positions table
+templ PositionsList(positions []models.Position) {
+	if len(positions) == 0 {
+		@components.EmptyPositions()
+	} else {
+		<div class="fade-in">
+			<!-- Summary -->
+			@positionsSummary(positions)
+
+			<!-- Positions Table -->
+			<div class="table-responsive">
+				<table class="table table-hover mb-0">
+					<thead>
+						<tr>
+							<th>Symbol</th>
+							<th>Side</th>
+							<th class="text-end">Quantity</th>
+							<th class="text-end">Avg Entry</th>
+							<th class="text-end">Current</th>
+							<th class="text-end">P/L</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, pos := range positions {
+							@positionRow(pos)
+						}
+					</tbody>
+				</table>
+			</div>
+		</div>
+	}
+}
+
+templ positionsSummary(positions []models.Position) {
+	<div class="card-body border-bottom" style="border-color: var(--border-default) !important;">
+		<div class="row text-center">
+			<div class="col-md-4">
+				<div class="text-muted small">Positions</div>
+				<div class="fs-5 fw-bold">{ fmt.Sprintf("%d", len(positions)) }</div>
+			</div>
+			<div class="col-md-4">
+				<div class="text-muted small">Total Value</div>
+				<div class="fs-5 fw-bold">{ formatMoney(calculateTotalValue(positions)) }</div>
+			</div>
+			<div class="col-md-4">
+				<div class="text-muted small">Total P/L</div>
+				<div class={ "fs-5 fw-bold", plColorClass(calculateTotalPL(positions)) }>
+					{ formatMoneyWithSign(calculateTotalPL(positions)) }
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
+templ positionRow(pos models.Position) {
+	<tr>
+		<td>
+			<span class="fw-bold">{ pos.Symbol }</span>
+		</td>
+		<td>
+			if pos.Side == models.PositionSideLong {
+				<span class="badge badge-buy">Long</span>
+			} else {
+				<span class="badge badge-sell">Short</span>
+			}
+		</td>
+		<td class="text-end">{ pos.Quantity.String() }</td>
+		<td class="text-end">{ formatMoney(pos.AvgEntryPrice) }</td>
+		<td class="text-end">{ formatMoney(pos.CurrentPrice) }</td>
+		<td class={ "text-end fw-bold", plColorClass(pos.UnrealizedPL) }>
+			{ formatMoneyWithSign(pos.UnrealizedPL) }
+		</td>
+	</tr>
+}
+
+func calculateTotalValue(positions []models.Position) decimal.Decimal {
+	total := decimal.Zero
+	for _, pos := range positions {
+		total = total.Add(pos.CurrentPrice.Mul(pos.Quantity))
+	}
+	return total
+}
+
+func calculateTotalPL(positions []models.Position) decimal.Decimal {
+	total := decimal.Zero
+	for _, pos := range positions {
+		total = total.Add(pos.UnrealizedPL)
+	}
+	return total
+}
+
+func formatMoney(d decimal.Decimal) string {
+	f, _ := d.Float64()
+	return fmt.Sprintf("$%.2f", f)
+}
+
+func formatMoneyWithSign(d decimal.Decimal) string {
+	f, _ := d.Float64()
+	if f >= 0 {
+		return fmt.Sprintf("+$%.2f", f)
+	}
+	return fmt.Sprintf("-$%.2f", -f)
+}
+
+func plColorClass(d decimal.Decimal) string {
+	if d.IsPositive() {
+		return "pl-positive"
+	}
+	if d.IsNegative() {
+		return "pl-negative"
+	}
+	return ""
+}

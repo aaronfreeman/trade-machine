@@ -3,11 +3,15 @@ package main
 import (
 	"context"
 	"fmt"
+	"os"
+	"strconv"
 
 	"trade-machine/agents"
 	"trade-machine/models"
 	"trade-machine/repository"
 	"trade-machine/services"
+
+	"github.com/google/uuid"
 )
 
 // App struct
@@ -16,14 +20,23 @@ type App struct {
 	repo             *repository.Repository
 	portfolioManager *agents.PortfolioManager
 	alpacaService    *services.AlpacaService
+	analysisSem      chan struct{}
 }
 
 // NewApp creates a new App application struct
 func NewApp(repo *repository.Repository, manager *agents.PortfolioManager, alpaca *services.AlpacaService) *App {
+	concurrencyLimit := 3
+	if val := os.Getenv("ANALYSIS_CONCURRENCY_LIMIT"); val != "" {
+		if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
+			concurrencyLimit = parsed
+		}
+	}
+
 	return &App{
 		repo:             repo,
 		portfolioManager: manager,
 		alpacaService:    alpaca,
+		analysisSem:      make(chan struct{}, concurrencyLimit),
 	}
 }
 
@@ -49,6 +62,14 @@ func (a *App) AnalyzeStock(symbol string) (*models.Recommendation, error) {
 	if a.portfolioManager == nil {
 		return nil, fmt.Errorf("portfolio manager not initialized")
 	}
+
+	select {
+	case a.analysisSem <- struct{}{}:
+		defer func() { <-a.analysisSem }()
+	default:
+		return nil, fmt.Errorf("analysis queue full, too many concurrent requests - try again later")
+	}
+
 	return a.portfolioManager.AnalyzeSymbol(a.ctx, symbol)
 }
 
@@ -120,21 +141,10 @@ func (a *App) GetAgentRuns(limit int) ([]models.AgentRun, error) {
 	return a.repo.GetAgentRuns(a.ctx, "", limit)
 }
 
-// Helper function to parse UUID
 func parseUUID(id string) ([16]byte, error) {
-	var uuid [16]byte
-	if len(id) != 36 {
-		return uuid, fmt.Errorf("invalid UUID format")
+	parsed, err := uuid.Parse(id)
+	if err != nil {
+		return [16]byte{}, fmt.Errorf("invalid UUID: %w", err)
 	}
-	// Simple UUID parsing (format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
-	hex := id[0:8] + id[9:13] + id[14:18] + id[19:23] + id[24:36]
-	for i := 0; i < 16; i++ {
-		var b byte
-		_, err := fmt.Sscanf(hex[i*2:i*2+2], "%02x", &b)
-		if err != nil {
-			return uuid, fmt.Errorf("invalid UUID: %w", err)
-		}
-		uuid[i] = b
-	}
-	return uuid, nil
+	return parsed, nil
 }

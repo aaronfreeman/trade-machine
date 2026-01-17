@@ -4,6 +4,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -22,8 +24,12 @@ func NewAPIHandler(app *App) *APIHandler {
 
 // ServeHTTP routes requests to appropriate handlers
 func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	// Enable CORS for development
-	w.Header().Set("Access-Control-Allow-Origin", "*")
+	corsOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
+	if corsOrigins == "" {
+		corsOrigins = "*"
+	}
+
+	w.Header().Set("Access-Control-Allow-Origin", corsOrigins)
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
@@ -35,6 +41,10 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 
 	switch {
+	// Health check endpoint
+	case path == "/api/health":
+		h.handleHealth(w, r)
+
 	// Legacy greet endpoint
 	case path == "/api/greet":
 		h.handleGreet(w, r)
@@ -70,6 +80,35 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.NotFound(w, r)
 	}
+}
+
+// handleHealth returns the health status of the application
+func (h *APIHandler) handleHealth(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	status := map[string]interface{}{
+		"status": "ok",
+		"services": map[string]string{
+			"database": "unknown",
+		},
+	}
+
+	if h.app.repo != nil {
+		ctx := r.Context()
+		if err := h.app.repo.Pool().Ping(ctx); err == nil {
+			status["services"].(map[string]string)["database"] = "connected"
+		} else {
+			status["services"].(map[string]string)["database"] = "disconnected"
+			status["status"] = "degraded"
+		}
+	} else {
+		status["services"].(map[string]string)["database"] = "not_configured"
+	}
+
+	h.jsonResponse(w, status)
 }
 
 // handleGreet handles the legacy greet endpoint
@@ -131,12 +170,7 @@ func (h *APIHandler) handleGetRecommendations(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	limit := 50
-	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
-		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
-			limit = l
-		}
-	}
+	limit := h.parseLimitParam(r, 50)
 
 	recs, err := h.app.GetRecommendations(limit)
 	if err != nil {
@@ -233,6 +267,11 @@ func (h *APIHandler) handleAnalyzeStock(w http.ResponseWriter, r *http.Request) 
 	// Normalize symbol to uppercase
 	req.Symbol = strings.ToUpper(strings.TrimSpace(req.Symbol))
 
+	if err := h.validateSymbol(req.Symbol); err != nil {
+		h.jsonError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	rec, err := h.app.AnalyzeStock(req.Symbol)
 	if err != nil {
 		h.jsonError(w, err.Error(), http.StatusInternalServerError)
@@ -249,12 +288,7 @@ func (h *APIHandler) handleGetTrades(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	limit := 50
-	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
-		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
-			limit = l
-		}
-	}
+	limit := h.parseLimitParam(r, 50)
 
 	trades, err := h.app.GetTrades(limit)
 	if err != nil {
@@ -272,12 +306,7 @@ func (h *APIHandler) handleGetAgentRuns(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 
-	limit := 50
-	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
-		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
-			limit = l
-		}
-	}
+	limit := h.parseLimitParam(r, 50)
 
 	runs, err := h.app.GetAgentRuns(limit)
 	if err != nil {
@@ -289,6 +318,32 @@ func (h *APIHandler) handleGetAgentRuns(w http.ResponseWriter, r *http.Request) 
 }
 
 // Helper functions
+
+func (h *APIHandler) validateSymbol(symbol string) error {
+	if symbol == "" {
+		return fmt.Errorf("symbol is required")
+	}
+
+	if len(symbol) > 10 {
+		return fmt.Errorf("symbol too long (max 10 characters)")
+	}
+
+	matched, _ := regexp.MatchString("^[A-Z0-9.-]+$", symbol)
+	if !matched {
+		return fmt.Errorf("invalid symbol format (alphanumeric, dots, and dashes only)")
+	}
+
+	return nil
+}
+
+func (h *APIHandler) parseLimitParam(r *http.Request, defaultLimit int) int {
+	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
+		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
+			return l
+		}
+	}
+	return defaultLimit
+}
 
 func (h *APIHandler) jsonResponse(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")

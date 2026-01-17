@@ -3,6 +3,9 @@ package agents
 import (
 	"context"
 	"fmt"
+	"log"
+	"os"
+	"strconv"
 	"sync"
 	"time"
 
@@ -44,11 +47,20 @@ func (m *PortfolioManager) AnalyzeSymbol(ctx context.Context, symbol string) (*m
 		go func(idx int, ag Agent) {
 			defer wg.Done()
 
-			// Log agent run start
-			run := models.NewAgentRun(ag.Type(), symbol)
-			m.repo.CreateAgentRun(ctx, run)
+			timeoutSeconds := 30
+			if val := os.Getenv("AGENT_TIMEOUT_SECONDS"); val != "" {
+				if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
+					timeoutSeconds = parsed
+				}
+			}
 
-			analysis, err := ag.Analyze(ctx, symbol)
+			agentCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSeconds)*time.Second)
+			defer cancel()
+
+			run := models.NewAgentRun(ag.Type(), symbol)
+			m.repo.CreateAgentRun(agentCtx, run)
+
+			analysis, err := ag.Analyze(agentCtx, symbol)
 			if err != nil {
 				errors[idx] = err
 				run.Fail(err)
@@ -61,7 +73,7 @@ func (m *PortfolioManager) AnalyzeSymbol(ctx context.Context, symbol string) (*m
 				})
 			}
 
-			m.repo.UpdateAgentRun(ctx, run)
+			m.repo.UpdateAgentRun(agentCtx, run)
 		}(i, agent)
 	}
 
@@ -73,7 +85,7 @@ func (m *PortfolioManager) AnalyzeSymbol(ctx context.Context, symbol string) (*m
 		if analysis != nil {
 			validAnalyses = append(validAnalyses, analysis)
 		} else if errors[i] != nil {
-			fmt.Printf("Agent %s failed: %v\n", m.agents[i].Name(), errors[i])
+			log.Printf("Agent %s failed for symbol %s: %v", m.agents[i].Name(), symbol, errors[i])
 		}
 	}
 
@@ -99,11 +111,26 @@ func (m *PortfolioManager) synthesizeRecommendation(symbol string, analyses []*A
 	var weightedScore float64 = 0
 	var reasonings []string
 
-	// Weight factors for different analysis types
 	weights := map[models.AgentType]float64{
-		models.AgentTypeFundamental: 0.4, // Fundamental analysis weighted highest
-		models.AgentTypeNews:        0.3, // News sentiment
-		models.AgentTypeTechnical:   0.3, // Technical analysis
+		models.AgentTypeFundamental: 0.4,
+		models.AgentTypeNews:        0.3,
+		models.AgentTypeTechnical:   0.3,
+	}
+
+	if val := os.Getenv("AGENT_WEIGHT_FUNDAMENTAL"); val != "" {
+		if parsed, err := strconv.ParseFloat(val, 64); err == nil && parsed >= 0 && parsed <= 1 {
+			weights[models.AgentTypeFundamental] = parsed
+		}
+	}
+	if val := os.Getenv("AGENT_WEIGHT_NEWS"); val != "" {
+		if parsed, err := strconv.ParseFloat(val, 64); err == nil && parsed >= 0 && parsed <= 1 {
+			weights[models.AgentTypeNews] = parsed
+		}
+	}
+	if val := os.Getenv("AGENT_WEIGHT_TECHNICAL"); val != "" {
+		if parsed, err := strconv.ParseFloat(val, 64); err == nil && parsed >= 0 && parsed <= 1 {
+			weights[models.AgentTypeTechnical] = parsed
+		}
 	}
 
 	for _, analysis := range analyses {

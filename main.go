@@ -30,7 +30,7 @@ func main() {
 	// Initialize database
 	connString := os.Getenv("DATABASE_URL")
 	if connString == "" {
-		connString = "host=localhost port=5432 user=trademachine password=trademachine_dev dbname=trademachine sslmode=disable"
+		log.Fatal("DATABASE_URL environment variable is required")
 	}
 
 	repo, err := repository.NewRepository(ctx, connString)

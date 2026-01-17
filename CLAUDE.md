@@ -108,6 +108,11 @@ type Analysis struct {
 - Key Factors: List of influential factors (e.g., "High P/E ratio", "Strong earnings growth")
 - Data: Raw fundamentals and key factors list
 
+**Codeing**
+- Keep code as simple as you can to implement the needed features
+- Always write tests for code
+- Try to keep the overall code coverage above 80%
+
 **Example Reasoning**:
 "Company is trading at 15x P/E with 25% YoY earnings growth and 3% dividend yield. Metrics suggest good value with moderate growth potential."
 
@@ -414,6 +419,60 @@ Query agent runs to:
 4. **Consider market conditions**: Agents analyze in isolation; external events matter
 5. **Regular audits**: Review agent reasoning for consistency and sanity
 6. **Tune thresholds**: Adjust BUY/SELL thresholds (currently ±25) based on results
+
+## Configuration
+
+### Environment Variables
+
+The agent system can be configured through environment variables:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `AGENT_TIMEOUT_SECONDS` | 30 | Timeout for each agent analysis |
+| `ANALYSIS_CONCURRENCY_LIMIT` | 3 | Max concurrent analysis requests |
+| `TECHNICAL_ANALYSIS_LOOKBACK_DAYS` | 100 | Historical data period for technical analysis |
+| `AGENT_WEIGHT_FUNDAMENTAL` | 0.4 | Weight for fundamental analysis (40%) |
+| `AGENT_WEIGHT_NEWS` | 0.3 | Weight for news sentiment (30%) |
+| `AGENT_WEIGHT_TECHNICAL` | 0.3 | Weight for technical analysis (30%) |
+| `BEDROCK_MAX_TOKENS` | 4096 | Max tokens for Claude API responses |
+| `BEDROCK_ANTHROPIC_VERSION` | bedrock-2023-05-31 | Anthropic API version |
+
+**Note**: Agent weights should sum to 1.0 for proper score synthesis.
+
+### Timeout Behavior
+
+Each agent runs with a configurable timeout (default: 30 seconds). When a timeout occurs:
+- The agent's goroutine is cancelled via context
+- The analysis returns with an error
+- The Portfolio Manager continues with successful agents
+- At least one agent must succeed for a recommendation
+
+### Rate Limiting
+
+Analysis requests are rate-limited using a semaphore (default: 3 concurrent). When the queue is full:
+- New requests immediately return an error
+- User receives: "analysis queue full, too many concurrent requests - try again later"
+- This prevents API quota exhaustion and controls costs
+
+## Error Handling
+
+### Resilience Features
+
+1. **Agent Timeouts**: Each agent has a 30-second timeout to prevent hung requests
+2. **Graceful Degradation**: Failed agents don't prevent recommendations
+3. **Rate Limiting**: Prevents API quota exhaustion
+4. **Partial Data Handling**:
+   - Technical Analyst: Returns neutral score (0) with low confidence if < 50 bars
+   - News Analyst: Returns neutral score (0) with low confidence if < 15 articles
+   - Fundamental Analyst: Logs warnings for unparseable metrics
+5. **Error Logging**: All agent failures are logged with symbol context
+
+### Data Parsing
+
+All external API responses are validated with proper error handling:
+- **Time parsing**: Invalid timestamps log warnings and use current time
+- **Numeric parsing**: Invalid numbers log warnings and use zero values
+- **JSON parsing**: Malformed responses return neutral scores with medium confidence
 
 ## Future Enhancements
 

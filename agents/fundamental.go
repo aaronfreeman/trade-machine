@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"trade-machine/models"
-	"trade-machine/services"
 )
 
 const fundamentalSystemPrompt = `You are a financial analyst specializing in fundamental analysis. 
@@ -39,12 +38,12 @@ type FundamentalAnalystResponse struct {
 
 // FundamentalAnalyst analyzes company fundamentals
 type FundamentalAnalyst struct {
-	bedrock      *services.BedrockService
-	alphaVantage *services.AlphaVantageService
+	bedrock      BedrockServiceInterface
+	alphaVantage AlphaVantageServiceInterface
 }
 
 // NewFundamentalAnalyst creates a new FundamentalAnalyst
-func NewFundamentalAnalyst(bedrock *services.BedrockService, alphaVantage *services.AlphaVantageService) *FundamentalAnalyst {
+func NewFundamentalAnalyst(bedrock BedrockServiceInterface, alphaVantage AlphaVantageServiceInterface) *FundamentalAnalyst {
 	return &FundamentalAnalyst{
 		bedrock:      bedrock,
 		alphaVantage: alphaVantage,

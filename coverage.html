@@ -1,0 +1,983 @@
+
+<!DOCTYPE html>
+<html>
+	<head>
+		<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+		<title>services: Go Coverage Report</title>
+		<style>
+			body {
+				background: black;
+				color: rgb(80, 80, 80);
+			}
+			body, pre, #legend span {
+				font-family: Menlo, monospace;
+				font-weight: bold;
+			}
+			#topbar {
+				background: black;
+				position: fixed;
+				top: 0; left: 0; right: 0;
+				height: 42px;
+				border-bottom: 1px solid rgb(80, 80, 80);
+			}
+			#content {
+				margin-top: 50px;
+			}
+			#nav, #legend {
+				float: left;
+				margin-left: 10px;
+			}
+			#legend {
+				margin-top: 12px;
+			}
+			#nav {
+				margin-top: 10px;
+			}
+			#legend span {
+				margin: 0 5px;
+			}
+			.cov0 { color: rgb(192, 0, 0) }
+.cov1 { color: rgb(128, 128, 128) }
+.cov2 { color: rgb(116, 140, 131) }
+.cov3 { color: rgb(104, 152, 134) }
+.cov4 { color: rgb(92, 164, 137) }
+.cov5 { color: rgb(80, 176, 140) }
+.cov6 { color: rgb(68, 188, 143) }
+.cov7 { color: rgb(56, 200, 146) }
+.cov8 { color: rgb(44, 212, 149) }
+.cov9 { color: rgb(32, 224, 152) }
+.cov10 { color: rgb(20, 236, 155) }
+
+		</style>
+	</head>
+	<body>
+		<div id="topbar">
+			<div id="nav">
+				<select id="files">
+				
+				<option value="file0">trade-machine/services/alpaca.go (57.6%)</option>
+				
+				<option value="file1">trade-machine/services/alphavantage.go (83.1%)</option>
+				
+				<option value="file2">trade-machine/services/bedrock.go (7.0%)</option>
+				
+				<option value="file3">trade-machine/services/newsapi.go (62.1%)</option>
+				
+				<option value="file4">trade-machine/services/retry.go (100.0%)</option>
+				
+				</select>
+			</div>
+			<div id="legend">
+				<span>not tracked</span>
+			
+				<span class="cov0">no coverage</span>
+				<span class="cov1">low coverage</span>
+				<span class="cov2">*</span>
+				<span class="cov3">*</span>
+				<span class="cov4">*</span>
+				<span class="cov5">*</span>
+				<span class="cov6">*</span>
+				<span class="cov7">*</span>
+				<span class="cov8">*</span>
+				<span class="cov9">*</span>
+				<span class="cov10">high coverage</span>
+			
+			</div>
+		</div>
+		<div id="content">
+		
+		<pre class="file" id="file0" style="display: none">package services
+
+import (
+        "context"
+        "fmt"
+        "time"
+
+        "trade-machine/models"
+
+        "github.com/alpacahq/alpaca-trade-api-go/v3/alpaca"
+        "github.com/alpacahq/alpaca-trade-api-go/v3/marketdata"
+        "github.com/shopspring/decimal"
+)
+
+// AlpacaService handles communication with Alpaca for trading and market data
+type AlpacaService struct {
+        tradeClient *alpaca.Client
+        dataClient  *marketdata.Client
+}
+
+// NewAlpacaService creates a new AlpacaService instance
+func NewAlpacaService(apiKey, apiSecret, baseURL string) *AlpacaService <span class="cov10" title="13">{
+        tradeClient := alpaca.NewClient(alpaca.ClientOpts{
+                APIKey:    apiKey,
+                APISecret: apiSecret,
+                BaseURL:   baseURL,
+        })
+
+        dataClient := marketdata.NewClient(marketdata.ClientOpts{
+                APIKey:    apiKey,
+                APISecret: apiSecret,
+        })
+
+        return &amp;AlpacaService{
+                tradeClient: tradeClient,
+                dataClient:  dataClient,
+        }
+}</span>
+
+// GetAccount returns the current account information
+func (s *AlpacaService) GetAccount(ctx context.Context) (map[string]interface{}, error) <span class="cov1" title="1">{
+        account, err := s.tradeClient.GetAccount()
+        if err != nil </span><span class="cov1" title="1">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">return map[string]interface{}{
+                "id":                    account.ID,
+                "account_number":        account.AccountNumber,
+                "status":                account.Status,
+                "currency":              account.Currency,
+                "buying_power":          account.BuyingPower,
+                "cash":                  account.Cash,
+                "portfolio_value":       account.PortfolioValue,
+                "pattern_day_trader":    account.PatternDayTrader,
+                "trading_blocked":       account.TradingBlocked,
+                "transfers_blocked":     account.TransfersBlocked,
+                "account_blocked":       account.AccountBlocked,
+                "created_at":            account.CreatedAt,
+                "trade_suspended_by_user": account.TradeSuspendedByUser,
+                "multiplier":            account.Multiplier,
+                "shorting_enabled":      account.ShortingEnabled,
+                "equity":                account.Equity,
+                "last_equity":           account.LastEquity,
+                "long_market_value":     account.LongMarketValue,
+                "short_market_value":    account.ShortMarketValue,
+                "initial_margin":        account.InitialMargin,
+                "maintenance_margin":    account.MaintenanceMargin,
+                "last_maintenance_margin": account.LastMaintenanceMargin,
+                "sma":                   account.SMA,
+                "daytrade_count":        account.DaytradeCount,
+        }, nil</span>
+}
+
+// GetQuote returns the latest quote for a symbol
+func (s *AlpacaService) GetQuote(ctx context.Context, symbol string) (*models.Quote, error) <span class="cov1" title="1">{
+        quote, err := s.dataClient.GetLatestQuote(symbol, marketdata.GetLatestQuoteRequest{})
+        if err != nil </span><span class="cov1" title="1">{
+                return nil, fmt.Errorf("failed to get quote for %s: %w", symbol, err)
+        }</span>
+
+        <span class="cov0" title="0">return &amp;models.Quote{
+                Symbol:    symbol,
+                Bid:       decimal.NewFromFloat(quote.BidPrice),
+                Ask:       decimal.NewFromFloat(quote.AskPrice),
+                BidSize:   int64(quote.BidSize),
+                AskSize:   int64(quote.AskSize),
+                Timestamp: quote.Timestamp,
+        }, nil</span>
+}
+
+// GetLatestTrade returns the latest trade for a symbol
+func (s *AlpacaService) GetLatestTrade(ctx context.Context, symbol string) (*models.Quote, error) <span class="cov1" title="1">{
+        trade, err := s.dataClient.GetLatestTrade(symbol, marketdata.GetLatestTradeRequest{})
+        if err != nil </span><span class="cov1" title="1">{
+                return nil, fmt.Errorf("failed to get trade for %s: %w", symbol, err)
+        }</span>
+
+        <span class="cov0" title="0">return &amp;models.Quote{
+                Symbol:    symbol,
+                Last:      decimal.NewFromFloat(trade.Price),
+                Volume:    int64(trade.Size),
+                Timestamp: trade.Timestamp,
+        }, nil</span>
+}
+
+// GetBars returns historical bars for a symbol
+func (s *AlpacaService) GetBars(ctx context.Context, symbol string, start, end time.Time, timeframe marketdata.TimeFrame) ([]marketdata.Bar, error) <span class="cov3" title="2">{
+        bars, err := s.dataClient.GetBars(symbol, marketdata.GetBarsRequest{
+                TimeFrame: timeframe,
+                Start:     start,
+                End:       end,
+        })
+        if err != nil </span><span class="cov3" title="2">{
+                return nil, fmt.Errorf("failed to get bars for %s: %w", symbol, err)
+        }</span>
+
+        <span class="cov0" title="0">return bars, nil</span>
+}
+
+// GetDailyBars returns daily bars for the last N days
+func (s *AlpacaService) GetDailyBars(ctx context.Context, symbol string, days int) ([]marketdata.Bar, error) <span class="cov1" title="1">{
+        end := time.Now()
+        start := end.AddDate(0, 0, -days)
+
+        return s.GetBars(ctx, symbol, start, end, marketdata.OneDay)
+}</span>
+
+// PlaceOrder places a trade order
+func (s *AlpacaService) PlaceOrder(ctx context.Context, symbol string, quantity decimal.Decimal, side models.TradeSide, orderType string) (string, error) <span class="cov6" title="5">{
+        qty := quantity
+
+        var alpacaSide alpaca.Side
+        if side == models.TradeSideBuy </span><span class="cov5" title="4">{
+                alpacaSide = alpaca.Buy
+        }</span> else<span class="cov1" title="1"> {
+                alpacaSide = alpaca.Sell
+        }</span>
+
+        <span class="cov6" title="5">var alpacaOrderType alpaca.OrderType
+        switch orderType </span>{
+        case "limit":<span class="cov1" title="1">
+                alpacaOrderType = alpaca.Limit</span>
+        case "stop":<span class="cov1" title="1">
+                alpacaOrderType = alpaca.Stop</span>
+        case "stop_limit":<span class="cov1" title="1">
+                alpacaOrderType = alpaca.StopLimit</span>
+        default:<span class="cov3" title="2">
+                alpacaOrderType = alpaca.Market</span>
+        }
+
+        <span class="cov6" title="5">order, err := s.tradeClient.PlaceOrder(alpaca.PlaceOrderRequest{
+                Symbol:      symbol,
+                Qty:         &amp;qty,
+                Side:        alpacaSide,
+                Type:        alpacaOrderType,
+                TimeInForce: alpaca.Day,
+        })
+        if err != nil </span><span class="cov6" title="5">{
+                return "", fmt.Errorf("failed to place order: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">return order.ID, nil</span>
+}
+
+// GetPositions returns all current positions
+func (s *AlpacaService) GetPositions(ctx context.Context) ([]models.Position, error) <span class="cov1" title="1">{
+        alpacaPositions, err := s.tradeClient.GetPositions()
+        if err != nil </span><span class="cov1" title="1">{
+                return nil, fmt.Errorf("failed to get positions: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">positions := make([]models.Position, 0, len(alpacaPositions))
+        for _, ap := range alpacaPositions </span><span class="cov0" title="0">{
+                side := models.PositionSideLong
+                if ap.Side == "short" </span><span class="cov0" title="0">{
+                        side = models.PositionSideShort
+                }</span>
+
+                <span class="cov0" title="0">currentPrice := decimal.Zero
+                if ap.CurrentPrice != nil </span><span class="cov0" title="0">{
+                        currentPrice = *ap.CurrentPrice
+                }</span>
+
+                <span class="cov0" title="0">unrealizedPL := decimal.Zero
+                if ap.UnrealizedPL != nil </span><span class="cov0" title="0">{
+                        unrealizedPL = *ap.UnrealizedPL
+                }</span>
+
+                <span class="cov0" title="0">positions = append(positions, models.Position{
+                        Symbol:        ap.Symbol,
+                        Quantity:      ap.Qty,
+                        AvgEntryPrice: ap.AvgEntryPrice,
+                        CurrentPrice:  currentPrice,
+                        UnrealizedPL:  unrealizedPL,
+                        Side:          side,
+                })</span>
+        }
+
+        <span class="cov0" title="0">return positions, nil</span>
+}
+
+// GetPosition returns a specific position
+func (s *AlpacaService) GetPosition(ctx context.Context, symbol string) (*models.Position, error) <span class="cov1" title="1">{
+        ap, err := s.tradeClient.GetPosition(symbol)
+        if err != nil </span><span class="cov1" title="1">{
+                return nil, fmt.Errorf("failed to get position for %s: %w", symbol, err)
+        }</span>
+
+        <span class="cov0" title="0">side := models.PositionSideLong
+        if ap.Side == "short" </span><span class="cov0" title="0">{
+                side = models.PositionSideShort
+        }</span>
+
+        <span class="cov0" title="0">currentPrice := decimal.Zero
+        if ap.CurrentPrice != nil </span><span class="cov0" title="0">{
+                currentPrice = *ap.CurrentPrice
+        }</span>
+
+        <span class="cov0" title="0">unrealizedPL := decimal.Zero
+        if ap.UnrealizedPL != nil </span><span class="cov0" title="0">{
+                unrealizedPL = *ap.UnrealizedPL
+        }</span>
+
+        <span class="cov0" title="0">return &amp;models.Position{
+                Symbol:        ap.Symbol,
+                Quantity:      ap.Qty,
+                AvgEntryPrice: ap.AvgEntryPrice,
+                CurrentPrice:  currentPrice,
+                UnrealizedPL:  unrealizedPL,
+                Side:          side,
+        }, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file1" style="display: none">package services
+
+import (
+        "context"
+        "encoding/json"
+        "fmt"
+        "log"
+        "net/http"
+        "net/url"
+        "strconv"
+        "time"
+
+        "trade-machine/models"
+
+        "github.com/shopspring/decimal"
+)
+
+// AlphaVantageService handles communication with Alpha Vantage API
+type AlphaVantageService struct {
+        apiKey     string
+        httpClient *http.Client
+        baseURL    string
+}
+
+// NewAlphaVantageService creates a new AlphaVantageService instance
+func NewAlphaVantageService(apiKey string) *AlphaVantageService <span class="cov10" title="4">{
+        return &amp;AlphaVantageService{
+                apiKey:     apiKey,
+                httpClient: &amp;http.Client{Timeout: 30 * time.Second},
+                baseURL:    "https://www.alphavantage.co/query",
+        }
+}</span>
+
+// OverviewResponse represents the company overview response from Alpha Vantage
+type OverviewResponse struct {
+        Symbol           string `json:"Symbol"`
+        Name             string `json:"Name"`
+        Description      string `json:"Description"`
+        Exchange         string `json:"Exchange"`
+        Currency         string `json:"Currency"`
+        Country          string `json:"Country"`
+        Sector           string `json:"Sector"`
+        Industry         string `json:"Industry"`
+        MarketCap        string `json:"MarketCapitalization"`
+        PERatio          string `json:"PERatio"`
+        PEGRatio         string `json:"PEGRatio"`
+        BookValue        string `json:"BookValue"`
+        DividendPerShare string `json:"DividendPerShare"`
+        DividendYield    string `json:"DividendYield"`
+        EPS              string `json:"EPS"`
+        RevenuePerShare  string `json:"RevenuePerShareTTM"`
+        ProfitMargin     string `json:"ProfitMargin"`
+        Beta             string `json:"Beta"`
+        Week52High       string `json:"52WeekHigh"`
+        Week52Low        string `json:"52WeekLow"`
+        AnalystTarget    string `json:"AnalystTargetPrice"`
+}
+
+// GetFundamentals returns fundamental data for a symbol
+func (s *AlphaVantageService) GetFundamentals(ctx context.Context, symbol string) (*models.Fundamentals, error) <span class="cov1" title="1">{
+        var fundamentals *models.Fundamentals
+
+        err := WithRetry(ctx, DefaultRetryConfig, func() error </span><span class="cov1" title="1">{
+                params := url.Values{}
+                params.Set("function", "OVERVIEW")
+                params.Set("symbol", symbol)
+                params.Set("apikey", s.apiKey)
+
+                resp, err := s.httpClient.Get(s.baseURL + "?" + params.Encode())
+                if err != nil </span><span class="cov0" title="0">{
+                        return fmt.Errorf("failed to fetch overview: %w", err)
+                }</span>
+                <span class="cov1" title="1">defer resp.Body.Close()
+
+                var overview OverviewResponse
+                if err := json.NewDecoder(resp.Body).Decode(&amp;overview); err != nil </span><span class="cov0" title="0">{
+                        return fmt.Errorf("failed to decode overview: %w", err)
+                }</span>
+
+                <span class="cov1" title="1">marketCap, _ := decimal.NewFromString(overview.MarketCap)
+                eps, _ := decimal.NewFromString(overview.EPS)
+                week52High, _ := decimal.NewFromString(overview.Week52High)
+                week52Low, _ := decimal.NewFromString(overview.Week52Low)
+
+                var peRatio, dividendYield, beta float64
+                if overview.PERatio != "" &amp;&amp; overview.PERatio != "None" </span><span class="cov1" title="1">{
+                        peRatio, err = strconv.ParseFloat(overview.PERatio, 64)
+                        if err != nil </span><span class="cov0" title="0">{
+                                log.Printf("Warning: failed to parse P/E ratio '%s': %v", overview.PERatio, err)
+                        }</span>
+                }
+                <span class="cov1" title="1">if overview.DividendYield != "" &amp;&amp; overview.DividendYield != "None" </span><span class="cov1" title="1">{
+                        dividendYield, err = strconv.ParseFloat(overview.DividendYield, 64)
+                        if err != nil </span><span class="cov0" title="0">{
+                                log.Printf("Warning: failed to parse dividend yield '%s': %v", overview.DividendYield, err)
+                        }</span>
+                }
+                <span class="cov1" title="1">if overview.Beta != "" &amp;&amp; overview.Beta != "None" </span><span class="cov1" title="1">{
+                        beta, err = strconv.ParseFloat(overview.Beta, 64)
+                        if err != nil </span><span class="cov0" title="0">{
+                                log.Printf("Warning: failed to parse beta '%s': %v", overview.Beta, err)
+                        }</span>
+                }
+
+                <span class="cov1" title="1">fundamentals = &amp;models.Fundamentals{
+                        Symbol:        symbol,
+                        MarketCap:     marketCap,
+                        PERatio:       peRatio,
+                        EPS:           eps,
+                        DividendYield: dividendYield,
+                        Week52High:    week52High,
+                        Week52Low:     week52Low,
+                        Beta:          beta,
+                        UpdatedAt:     time.Now(),
+                }
+
+                return nil</span>
+        })
+
+        <span class="cov1" title="1">if err != nil </span><span class="cov0" title="0">{
+                return nil, err
+        }</span>
+
+        <span class="cov1" title="1">return fundamentals, nil</span>
+}
+
+// NewsResponse represents the news response from Alpha Vantage
+type NewsResponse struct {
+        Items string `json:"items"`
+        Feed  []struct {
+                Title            string   `json:"title"`
+                URL              string   `json:"url"`
+                Summary          string   `json:"summary"`
+                Source           string   `json:"source"`
+                TimePublished    string   `json:"time_published"`
+                Authors          []string `json:"authors"`
+                OverallSentiment string   `json:"overall_sentiment_label"`
+                SentimentScore   float64  `json:"overall_sentiment_score"`
+        } `json:"feed"`
+}
+
+// GetNews returns recent news for a symbol
+func (s *AlphaVantageService) GetNews(ctx context.Context, symbol string) ([]models.NewsArticle, error) <span class="cov1" title="1">{
+        params := url.Values{}
+        params.Set("function", "NEWS_SENTIMENT")
+        params.Set("tickers", symbol)
+        params.Set("limit", "10")
+        params.Set("apikey", s.apiKey)
+
+        resp, err := s.httpClient.Get(s.baseURL + "?" + params.Encode())
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to fetch news: %w", err)
+        }</span>
+        <span class="cov1" title="1">defer resp.Body.Close()
+
+        var newsResp NewsResponse
+        if err := json.NewDecoder(resp.Body).Decode(&amp;newsResp); err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to decode news: %w", err)
+        }</span>
+
+        <span class="cov1" title="1">articles := make([]models.NewsArticle, 0, len(newsResp.Feed))
+        for _, item := range newsResp.Feed </span><span class="cov5" title="2">{
+                publishedAt, err := time.Parse("20060102T150405", item.TimePublished)
+                if err != nil </span><span class="cov0" title="0">{
+                        log.Printf("Warning: failed to parse timestamp '%s': %v, using current time", item.TimePublished, err)
+                        publishedAt = time.Now()
+                }</span>
+
+                <span class="cov5" title="2">author := ""
+                if len(item.Authors) &gt; 0 </span><span class="cov5" title="2">{
+                        author = item.Authors[0]
+                }</span>
+
+                <span class="cov5" title="2">articles = append(articles, models.NewsArticle{
+                        Title:       item.Title,
+                        Description: item.Summary,
+                        URL:         item.URL,
+                        Source:      item.Source,
+                        Author:      author,
+                        PublishedAt: publishedAt,
+                })</span>
+        }
+
+        <span class="cov1" title="1">return articles, nil</span>
+}
+
+// QuoteResponse represents a quote from Alpha Vantage
+type QuoteResponse struct {
+        GlobalQuote struct {
+                Symbol        string `json:"01. symbol"`
+                Open          string `json:"02. open"`
+                High          string `json:"03. high"`
+                Low           string `json:"04. low"`
+                Price         string `json:"05. price"`
+                Volume        string `json:"06. volume"`
+                LatestDay     string `json:"07. latest trading day"`
+                PrevClose     string `json:"08. previous close"`
+                Change        string `json:"09. change"`
+                ChangePercent string `json:"10. change percent"`
+        } `json:"Global Quote"`
+}
+
+// GetQuote returns the latest quote for a symbol
+func (s *AlphaVantageService) GetQuote(ctx context.Context, symbol string) (*models.Quote, error) <span class="cov1" title="1">{
+        params := url.Values{}
+        params.Set("function", "GLOBAL_QUOTE")
+        params.Set("symbol", symbol)
+        params.Set("apikey", s.apiKey)
+
+        resp, err := s.httpClient.Get(s.baseURL + "?" + params.Encode())
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to fetch quote: %w", err)
+        }</span>
+        <span class="cov1" title="1">defer resp.Body.Close()
+
+        var quoteResp QuoteResponse
+        if err := json.NewDecoder(resp.Body).Decode(&amp;quoteResp); err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to decode quote: %w", err)
+        }</span>
+
+        <span class="cov1" title="1">price, _ := decimal.NewFromString(quoteResp.GlobalQuote.Price)
+        var volume int64
+        if quoteResp.GlobalQuote.Volume != "" </span><span class="cov1" title="1">{
+                volume, err = strconv.ParseInt(quoteResp.GlobalQuote.Volume, 10, 64)
+                if err != nil </span><span class="cov0" title="0">{
+                        log.Printf("Warning: failed to parse volume '%s': %v", quoteResp.GlobalQuote.Volume, err)
+                }</span>
+        }
+
+        <span class="cov1" title="1">return &amp;models.Quote{
+                Symbol:    symbol,
+                Last:      price,
+                Volume:    volume,
+                Timestamp: time.Now(),
+        }, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file2" style="display: none">package services
+
+import (
+        "context"
+        "encoding/json"
+        "fmt"
+        "os"
+        "strconv"
+
+        "github.com/aws/aws-sdk-go-v2/aws"
+        "github.com/aws/aws-sdk-go-v2/config"
+        "github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
+)
+
+// BedrockService handles communication with AWS Bedrock for Claude models
+type BedrockService struct {
+        client *bedrockruntime.Client
+        model  string
+}
+
+// ClaudeRequest represents the request format for Claude models via Bedrock
+type ClaudeRequest struct {
+        AnthropicVersion string          `json:"anthropic_version"`
+        MaxTokens        int             `json:"max_tokens"`
+        System           string          `json:"system,omitempty"`
+        Messages         []ClaudeMessage `json:"messages"`
+}
+
+// ClaudeMessage represents a message in the Claude conversation
+type ClaudeMessage struct {
+        Role    string `json:"role"`
+        Content string `json:"content"`
+}
+
+// ClaudeResponse represents the response from Claude models
+type ClaudeResponse struct {
+        ID      string `json:"id"`
+        Type    string `json:"type"`
+        Role    string `json:"role"`
+        Content []struct {
+                Type string `json:"type"`
+                Text string `json:"text"`
+        } `json:"content"`
+        StopReason string `json:"stop_reason"`
+        Usage      struct {
+                InputTokens  int `json:"input_tokens"`
+                OutputTokens int `json:"output_tokens"`
+        } `json:"usage"`
+}
+
+// NewBedrockService creates a new BedrockService instance
+func NewBedrockService(ctx context.Context, region, modelID string) (*BedrockService, error) <span class="cov10" title="10">{
+        cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("unable to load AWS SDK config: %w", err)
+        }</span>
+
+        <span class="cov10" title="10">return &amp;BedrockService{
+                client: bedrockruntime.NewFromConfig(cfg),
+                model:  modelID,
+        }, nil</span>
+}
+
+// InvokeWithPrompt sends a prompt to Claude and returns the response text
+func (s *BedrockService) InvokeWithPrompt(ctx context.Context, systemPrompt, userPrompt string) (string, error) <span class="cov0" title="0">{
+        maxTokens := 4096
+        if val := os.Getenv("BEDROCK_MAX_TOKENS"); val != "" </span><span class="cov0" title="0">{
+                if parsed, err := strconv.Atoi(val); err == nil &amp;&amp; parsed &gt; 0 </span><span class="cov0" title="0">{
+                        maxTokens = parsed
+                }</span>
+        }
+
+        <span class="cov0" title="0">anthropicVersion := "bedrock-2023-05-31"
+        if val := os.Getenv("BEDROCK_ANTHROPIC_VERSION"); val != "" </span><span class="cov0" title="0">{
+                anthropicVersion = val
+        }</span>
+
+        <span class="cov0" title="0">request := ClaudeRequest{
+                AnthropicVersion: anthropicVersion,
+                MaxTokens:        maxTokens,
+                System:           systemPrompt,
+                Messages: []ClaudeMessage{
+                        {Role: "user", Content: userPrompt},
+                },
+        }
+
+        reqBody, err := json.Marshal(request)
+        if err != nil </span><span class="cov0" title="0">{
+                return "", fmt.Errorf("failed to marshal request: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">output, err := s.client.InvokeModel(ctx, &amp;bedrockruntime.InvokeModelInput{
+                ModelId:     aws.String(s.model),
+                Body:        reqBody,
+                ContentType: aws.String("application/json"),
+        })
+        if err != nil </span><span class="cov0" title="0">{
+                return "", fmt.Errorf("failed to invoke model: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">var response ClaudeResponse
+        if err := json.Unmarshal(output.Body, &amp;response); err != nil </span><span class="cov0" title="0">{
+                return "", fmt.Errorf("failed to unmarshal response: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">if len(response.Content) == 0 </span><span class="cov0" title="0">{
+                return "", fmt.Errorf("empty response from model")
+        }</span>
+
+        <span class="cov0" title="0">return response.Content[0].Text, nil</span>
+}
+
+// InvokeStructured sends a prompt and parses the JSON response into the provided struct
+func (s *BedrockService) InvokeStructured(ctx context.Context, systemPrompt, userPrompt string, result interface{}) error <span class="cov0" title="0">{
+        text, err := s.InvokeWithPrompt(ctx, systemPrompt, userPrompt)
+        if err != nil </span><span class="cov0" title="0">{
+                return err
+        }</span>
+
+        // Try to parse as JSON
+        <span class="cov0" title="0">if err := json.Unmarshal([]byte(text), result); err != nil </span><span class="cov0" title="0">{
+                return fmt.Errorf("failed to parse response as JSON: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">return nil</span>
+}
+
+// Chat enables multi-turn conversation with Claude
+func (s *BedrockService) Chat(ctx context.Context, systemPrompt string, messages []ClaudeMessage) (string, error) <span class="cov0" title="0">{
+        request := ClaudeRequest{
+                AnthropicVersion: "bedrock-2023-05-31",
+                MaxTokens:        4096,
+                System:           systemPrompt,
+                Messages:         messages,
+        }
+
+        reqBody, err := json.Marshal(request)
+        if err != nil </span><span class="cov0" title="0">{
+                return "", fmt.Errorf("failed to marshal request: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">output, err := s.client.InvokeModel(ctx, &amp;bedrockruntime.InvokeModelInput{
+                ModelId:     aws.String(s.model),
+                Body:        reqBody,
+                ContentType: aws.String("application/json"),
+        })
+        if err != nil </span><span class="cov0" title="0">{
+                return "", fmt.Errorf("failed to invoke model: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">var response ClaudeResponse
+        if err := json.Unmarshal(output.Body, &amp;response); err != nil </span><span class="cov0" title="0">{
+                return "", fmt.Errorf("failed to unmarshal response: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">if len(response.Content) == 0 </span><span class="cov0" title="0">{
+                return "", fmt.Errorf("empty response from model")
+        }</span>
+
+        <span class="cov0" title="0">return response.Content[0].Text, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file3" style="display: none">package services
+
+import (
+        "context"
+        "encoding/json"
+        "fmt"
+        "log"
+        "net/http"
+        "net/url"
+        "time"
+
+        "trade-machine/models"
+)
+
+// NewsAPIService handles communication with NewsAPI.org
+type NewsAPIService struct {
+        apiKey     string
+        httpClient *http.Client
+        baseURL    string
+}
+
+// NewNewsAPIService creates a new NewsAPIService instance
+func NewNewsAPIService(apiKey string) *NewsAPIService <span class="cov7" title="8">{
+        return &amp;NewsAPIService{
+                apiKey:     apiKey,
+                httpClient: &amp;http.Client{Timeout: 30 * time.Second},
+                baseURL:    "https://newsapi.org/v2",
+        }
+}</span>
+
+// NewsAPIResponse represents the response from NewsAPI
+type NewsAPIResponse struct {
+        Status       string `json:"status"`
+        TotalResults int    `json:"totalResults"`
+        Articles     []struct {
+                Source struct {
+                        ID   string `json:"id"`
+                        Name string `json:"name"`
+                } `json:"source"`
+                Author      string `json:"author"`
+                Title       string `json:"title"`
+                Description string `json:"description"`
+                URL         string `json:"url"`
+                URLToImage  string `json:"urlToImage"`
+                PublishedAt string `json:"publishedAt"`
+                Content     string `json:"content"`
+        } `json:"articles"`
+}
+
+// GetNews returns news articles for a query (typically a stock symbol or company name)
+func (s *NewsAPIService) GetNews(ctx context.Context, query string, limit int) ([]models.NewsArticle, error) <span class="cov6" title="5">{
+        if limit &lt;= 0 </span><span class="cov3" title="2">{
+                limit = 10
+        }</span>
+        <span class="cov6" title="5">if limit &gt; 100 </span><span class="cov1" title="1">{
+                limit = 100
+        }</span>
+
+        <span class="cov6" title="5">var articles []models.NewsArticle
+        err := WithRetry(ctx, DefaultRetryConfig, func() error </span><span class="cov10" title="17">{
+                params := url.Values{}
+                params.Set("q", query)
+                params.Set("language", "en")
+                params.Set("sortBy", "publishedAt")
+                params.Set("pageSize", fmt.Sprintf("%d", limit))
+
+                req, err := http.NewRequestWithContext(ctx, "GET", s.baseURL+"/everything?"+params.Encode(), nil)
+                if err != nil </span><span class="cov0" title="0">{
+                        return fmt.Errorf("failed to create request: %w", err)
+                }</span>
+                <span class="cov10" title="17">req.Header.Set("X-Api-Key", s.apiKey)
+
+                resp, err := s.httpClient.Do(req)
+                if err != nil </span><span class="cov1" title="1">{
+                        return fmt.Errorf("failed to fetch news: %w", err)
+                }</span>
+                <span class="cov9" title="16">defer resp.Body.Close()
+
+                if resp.StatusCode != http.StatusOK </span><span class="cov9" title="16">{
+                        return fmt.Errorf("NewsAPI returned status %d", resp.StatusCode)
+                }</span>
+
+                <span class="cov0" title="0">var newsResp NewsAPIResponse
+                if err := json.NewDecoder(resp.Body).Decode(&amp;newsResp); err != nil </span><span class="cov0" title="0">{
+                        return fmt.Errorf("failed to decode response: %w", err)
+                }</span>
+
+                <span class="cov0" title="0">articles = make([]models.NewsArticle, 0, len(newsResp.Articles))
+                for _, item := range newsResp.Articles </span><span class="cov0" title="0">{
+                        publishedAt, err := time.Parse(time.RFC3339, item.PublishedAt)
+                        if err != nil </span><span class="cov0" title="0">{
+                                log.Printf("Warning: failed to parse timestamp '%s': %v, using current time", item.PublishedAt, err)
+                                publishedAt = time.Now()
+                        }</span>
+
+                        <span class="cov0" title="0">articles = append(articles, models.NewsArticle{
+                                Title:       item.Title,
+                                Description: item.Description,
+                                URL:         item.URL,
+                                Source:      item.Source.Name,
+                                Author:      item.Author,
+                                ImageURL:    item.URLToImage,
+                                PublishedAt: publishedAt,
+                        })</span>
+                }
+
+                <span class="cov0" title="0">return nil</span>
+        })
+
+        <span class="cov6" title="5">if err != nil </span><span class="cov6" title="5">{
+                return nil, err
+        }</span>
+
+        <span class="cov0" title="0">return articles, nil</span>
+}
+
+// GetHeadlines returns top headlines mentioning a company or stock
+func (s *NewsAPIService) GetHeadlines(ctx context.Context, query string, limit int) ([]models.NewsArticle, error) <span class="cov6" title="5">{
+        if limit &lt;= 0 </span><span class="cov3" title="2">{
+                limit = 10
+        }</span>
+        <span class="cov6" title="5">if limit &gt; 100 </span><span class="cov1" title="1">{
+                limit = 100
+        }</span>
+
+        <span class="cov6" title="5">params := url.Values{}
+        params.Set("q", query)
+        params.Set("country", "us")
+        params.Set("category", "business")
+        params.Set("pageSize", fmt.Sprintf("%d", limit))
+
+        req, err := http.NewRequestWithContext(ctx, "GET", s.baseURL+"/top-headlines?"+params.Encode(), nil)
+        if err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to create request: %w", err)
+        }</span>
+        <span class="cov6" title="5">req.Header.Set("X-Api-Key", s.apiKey)
+
+        resp, err := s.httpClient.Do(req)
+        if err != nil </span><span class="cov1" title="1">{
+                return nil, fmt.Errorf("failed to fetch headlines: %w", err)
+        }</span>
+        <span class="cov5" title="4">defer resp.Body.Close()
+
+        if resp.StatusCode != http.StatusOK </span><span class="cov5" title="4">{
+                return nil, fmt.Errorf("NewsAPI returned status %d", resp.StatusCode)
+        }</span>
+
+        <span class="cov0" title="0">var newsResp NewsAPIResponse
+        if err := json.NewDecoder(resp.Body).Decode(&amp;newsResp); err != nil </span><span class="cov0" title="0">{
+                return nil, fmt.Errorf("failed to decode response: %w", err)
+        }</span>
+
+        <span class="cov0" title="0">articles := make([]models.NewsArticle, 0, len(newsResp.Articles))
+        for _, item := range newsResp.Articles </span><span class="cov0" title="0">{
+                publishedAt, err := time.Parse(time.RFC3339, item.PublishedAt)
+                if err != nil </span><span class="cov0" title="0">{
+                        log.Printf("Warning: failed to parse timestamp '%s': %v, using current time", item.PublishedAt, err)
+                        publishedAt = time.Now()
+                }</span>
+
+                <span class="cov0" title="0">articles = append(articles, models.NewsArticle{
+                        Title:       item.Title,
+                        Description: item.Description,
+                        URL:         item.URL,
+                        Source:      item.Source.Name,
+                        Author:      item.Author,
+                        ImageURL:    item.URLToImage,
+                        PublishedAt: publishedAt,
+                })</span>
+        }
+
+        <span class="cov0" title="0">return articles, nil</span>
+}
+</pre>
+		
+		<pre class="file" id="file4" style="display: none">package services
+
+import (
+        "context"
+        "fmt"
+        "log"
+        "time"
+)
+
+type RetryConfig struct {
+        MaxRetries     int
+        InitialBackoff time.Duration
+        MaxBackoff     time.Duration
+}
+
+var DefaultRetryConfig = RetryConfig{
+        MaxRetries:     3,
+        InitialBackoff: 100 * time.Millisecond,
+        MaxBackoff:     5 * time.Second,
+}
+
+func WithRetry(ctx context.Context, config RetryConfig, fn func() error) error <span class="cov7" title="12">{
+        var lastErr error
+        backoff := config.InitialBackoff
+
+        for attempt := 0; attempt &lt;= config.MaxRetries; attempt++ </span><span class="cov10" title="39">{
+                if attempt &gt; 0 </span><span class="cov9" title="27">{
+                        select </span>{
+                        case &lt;-ctx.Done():<span class="cov2" title="2">
+                                return fmt.Errorf("context cancelled during retry: %w", ctx.Err())</span>
+                        case &lt;-time.After(backoff):<span class="cov8" title="25"></span>
+                        }
+
+                        <span class="cov8" title="25">backoff *= 2
+                        if backoff &gt; config.MaxBackoff </span><span class="cov4" title="5">{
+                                backoff = config.MaxBackoff
+                        }</span>
+                }
+
+                <span class="cov9" title="37">err := fn()
+                if err == nil </span><span class="cov3" title="3">{
+                        return nil
+                }</span>
+
+                <span class="cov9" title="34">lastErr = err
+                if attempt &lt; config.MaxRetries </span><span class="cov9" title="27">{
+                        log.Printf("Retry attempt %d/%d failed: %v", attempt+1, config.MaxRetries, err)
+                }</span>
+        }
+
+        <span class="cov5" title="7">return fmt.Errorf("failed after %d retries: %w", config.MaxRetries, lastErr)</span>
+}
+</pre>
+		
+		</div>
+	</body>
+	<script>
+	(function() {
+		var files = document.getElementById('files');
+		var visible;
+		files.addEventListener('change', onChange, false);
+		function select(part) {
+			if (visible)
+				visible.style.display = 'none';
+			visible = document.getElementById(part);
+			if (!visible)
+				return;
+			files.value = part;
+			visible.style.display = 'block';
+			location.hash = part;
+		}
+		function onChange() {
+			select(files.value);
+			window.scrollTo(0, 0);
+		}
+		if (location.hash != "") {
+			select(location.hash.substr(1));
+		}
+		if (!visible) {
+			select("file0");
+		}
+	})();
+	</script>
+</html>

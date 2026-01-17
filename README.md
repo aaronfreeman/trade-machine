@@ -209,6 +209,15 @@ All configuration is managed through environment variables. See `.env.example` f
 | `NEWS_API_KEY` | News sentiment API | Yes (news analysis) |
 | `LOG_LEVEL` | Logging verbosity | No (defaults to info) |
 | `CACHE_TTL_MINUTES` | Data cache duration | No (defaults to 15) |
+| `CORS_ALLOWED_ORIGINS` | CORS allowed origins | No (defaults to *) |
+| `AGENT_TIMEOUT_SECONDS` | Agent timeout | No (defaults to 30) |
+| `ANALYSIS_CONCURRENCY_LIMIT` | Max concurrent analyses | No (defaults to 3) |
+| `TECHNICAL_ANALYSIS_LOOKBACK_DAYS` | Historical data period | No (defaults to 100) |
+| `AGENT_WEIGHT_FUNDAMENTAL` | Fundamental weight | No (defaults to 0.4) |
+| `AGENT_WEIGHT_NEWS` | News weight | No (defaults to 0.3) |
+| `AGENT_WEIGHT_TECHNICAL` | Technical weight | No (defaults to 0.3) |
+| `BEDROCK_MAX_TOKENS` | Max Claude tokens | No (defaults to 4096) |
+| `BEDROCK_ANTHROPIC_VERSION` | Anthropic API version | No (defaults to bedrock-2023-05-31) |
 
 The application will start with graceful degradation if optional services are not configured - you can still use available features.
 

@@ -1,7 +1,14 @@
 package agents
 
 import (
+	"context"
+	"errors"
 	"testing"
+	"time"
+
+	"trade-machine/models"
+
+	marketdata "github.com/alpacahq/alpaca-trade-api-go/v3/marketdata"
 )
 
 func TestTechnicalAnalyst_CalculateSMA(t *testing.T) {
@@ -59,32 +66,32 @@ func TestTechnicalAnalyst_CalculateRSI(t *testing.T) {
 	analyst := &TechnicalAnalyst{}
 
 	tests := []struct {
-		name      string
-		prices    []float64
-		period    int
-		wantMin   float64
-		wantMax   float64
+		name    string
+		prices  []float64
+		period  int
+		wantMin float64
+		wantMax float64
 	}{
 		{
-			name:      "uptrending prices - high RSI",
-			prices:    []float64{40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55},
-			period:    14,
-			wantMin:   70.0, // Should be high (bullish)
-			wantMax:   100.0,
+			name:    "uptrending prices - high RSI",
+			prices:  []float64{40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55},
+			period:  14,
+			wantMin: 70.0, // Should be high (bullish)
+			wantMax: 100.0,
 		},
 		{
-			name:      "downtrending prices - low RSI",
-			prices:    []float64{55, 54, 53, 52, 51, 50, 49, 48, 47, 46, 45, 44, 43, 42, 41, 40},
-			period:    14,
-			wantMin:   0.0,
-			wantMax:   30.0, // Should be low (bearish)
+			name:    "downtrending prices - low RSI",
+			prices:  []float64{55, 54, 53, 52, 51, 50, 49, 48, 47, 46, 45, 44, 43, 42, 41, 40},
+			period:  14,
+			wantMin: 0.0,
+			wantMax: 30.0, // Should be low (bearish)
 		},
 		{
-			name:      "insufficient data returns neutral",
-			prices:    []float64{100, 101, 102},
-			period:    14,
-			wantMin:   50.0,
-			wantMax:   50.0,
+			name:    "insufficient data returns neutral",
+			prices:  []float64{100, 101, 102},
+			period:  14,
+			wantMin: 50.0,
+			wantMax: 50.0,
 		},
 	}
 
@@ -199,5 +206,182 @@ func TestTechnicalAnalyst_Type(t *testing.T) {
 	analyst := &TechnicalAnalyst{}
 	if string(analyst.Type()) != "technical" {
 		t.Errorf("Type() = %v, want 'technical'", analyst.Type())
+	}
+}
+
+func TestNewTechnicalAnalyst(t *testing.T) {
+	analyst := NewTechnicalAnalyst(nil, nil)
+	if analyst == nil {
+		t.Error("NewTechnicalAnalyst should not return nil")
+	}
+}
+
+func TestTechnicalAnalyst_Analyze_Success(t *testing.T) {
+	mockBedrock := &mockBedrockService{
+		response: `{
+			"score": 55.0,
+			"confidence": 75.0,
+			"reasoning": "Bullish MACD crossover with RSI in neutral territory",
+			"signals": ["MACD bullish crossover", "Price above SMA20", "RSI neutral"]
+		}`,
+	}
+
+	bars := make([]marketdata.Bar, 100)
+	basePrice := 100.0
+	for i := 0; i < 100; i++ {
+		bars[i] = marketdata.Bar{
+			Timestamp: time.Now().AddDate(0, 0, -100+i),
+			Open:      basePrice + float64(i)*0.5,
+			High:      basePrice + float64(i)*0.5 + 1.0,
+			Low:       basePrice + float64(i)*0.5 - 1.0,
+			Close:     basePrice + float64(i)*0.5,
+			Volume:    1000000,
+		}
+	}
+
+	mockAlpaca := &mockAlpacaService{
+		bars: bars,
+	}
+
+	analyst := NewTechnicalAnalyst(mockBedrock, mockAlpaca)
+	ctx := context.Background()
+
+	analysis, err := analyst.Analyze(ctx, "AAPL")
+	if err != nil {
+		t.Fatalf("Analyze failed: %v", err)
+	}
+
+	if analysis.Symbol != "AAPL" {
+		t.Errorf("Symbol = %v, want AAPL", analysis.Symbol)
+	}
+	if analysis.AgentType != models.AgentTypeTechnical {
+		t.Errorf("AgentType = %v, want Technical", analysis.AgentType)
+	}
+	if analysis.Score != 55.0 {
+		t.Errorf("Score = %v, want 55.0", analysis.Score)
+	}
+	if analysis.Confidence != 75.0 {
+		t.Errorf("Confidence = %v, want 75.0", analysis.Confidence)
+	}
+
+	signals, ok := analysis.Data["signals"].([]string)
+	if !ok {
+		t.Error("signals should be []string")
+	}
+	if len(signals) != 3 {
+		t.Errorf("Expected 3 signals, got %d", len(signals))
+	}
+}
+
+func TestTechnicalAnalyst_Analyze_InsufficientData(t *testing.T) {
+	mockBedrock := &mockBedrockService{
+		response: `{"score": 0, "confidence": 20, "reasoning": "test", "signals": []}`,
+	}
+
+	bars := make([]marketdata.Bar, 30)
+	for i := 0; i < 30; i++ {
+		bars[i] = marketdata.Bar{
+			Close:  100.0 + float64(i),
+			Volume: 1000000,
+		}
+	}
+
+	mockAlpaca := &mockAlpacaService{
+		bars: bars,
+	}
+
+	analyst := NewTechnicalAnalyst(mockBedrock, mockAlpaca)
+	ctx := context.Background()
+
+	analysis, err := analyst.Analyze(ctx, "NEWSTOCK")
+	if err != nil {
+		t.Fatalf("Analyze should not fail with insufficient data: %v", err)
+	}
+
+	if analysis.Score != 0 {
+		t.Errorf("Score = %v, want 0 for insufficient data", analysis.Score)
+	}
+	if analysis.Confidence != 20 {
+		t.Errorf("Confidence = %v, want 20 for insufficient data", analysis.Confidence)
+	}
+	if analysis.Reasoning != "Insufficient price history for technical analysis" {
+		t.Errorf("Reasoning should indicate insufficient data")
+	}
+}
+
+func TestTechnicalAnalyst_Analyze_AlpacaError(t *testing.T) {
+	mockBedrock := &mockBedrockService{
+		response: `{"score": 0, "confidence": 50, "reasoning": "test", "signals": []}`,
+	}
+
+	mockAlpaca := &mockAlpacaService{
+		err: errors.New("Alpaca API unavailable"),
+	}
+
+	analyst := NewTechnicalAnalyst(mockBedrock, mockAlpaca)
+	ctx := context.Background()
+
+	_, err := analyst.Analyze(ctx, "AAPL")
+	if err == nil {
+		t.Error("Expected error when Alpaca fails")
+	}
+}
+
+func TestTechnicalAnalyst_Analyze_BedrockError(t *testing.T) {
+	mockBedrock := &mockBedrockService{
+		err: errors.New("Bedrock service unavailable"),
+	}
+
+	bars := make([]marketdata.Bar, 100)
+	for i := 0; i < 100; i++ {
+		bars[i] = marketdata.Bar{
+			Close:  100.0 + float64(i)*0.5,
+			Volume: 1000000,
+		}
+	}
+
+	mockAlpaca := &mockAlpacaService{
+		bars: bars,
+	}
+
+	analyst := NewTechnicalAnalyst(mockBedrock, mockAlpaca)
+	ctx := context.Background()
+
+	_, err := analyst.Analyze(ctx, "AAPL")
+	if err == nil {
+		t.Error("Expected error when Bedrock fails")
+	}
+}
+
+func TestTechnicalAnalyst_Analyze_InvalidJSON(t *testing.T) {
+	mockBedrock := &mockBedrockService{
+		response: "Plain text technical analysis, not JSON",
+	}
+
+	bars := make([]marketdata.Bar, 100)
+	for i := 0; i < 100; i++ {
+		bars[i] = marketdata.Bar{
+			Close:  100.0 + float64(i)*0.5,
+			Volume: 1000000,
+		}
+	}
+
+	mockAlpaca := &mockAlpacaService{
+		bars: bars,
+	}
+
+	analyst := NewTechnicalAnalyst(mockBedrock, mockAlpaca)
+	ctx := context.Background()
+
+	analysis, err := analyst.Analyze(ctx, "AAPL")
+	if err != nil {
+		t.Fatalf("Analyze should not fail with invalid JSON: %v", err)
+	}
+
+	if analysis.Score != 0 {
+		t.Errorf("Score = %v, want 0 for invalid JSON", analysis.Score)
+	}
+	if analysis.Confidence != 50 {
+		t.Errorf("Confidence = %v, want 50 for invalid JSON", analysis.Confidence)
 	}
 }

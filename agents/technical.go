@@ -4,12 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"strconv"
 	"time"
 
 	"trade-machine/models"
-	"trade-machine/services"
 
-	"github.com/alpacahq/alpaca-trade-api-go/v3/marketdata"
+	marketdata "github.com/alpacahq/alpaca-trade-api-go/v3/marketdata"
 )
 
 const technicalSystemPrompt = `You are a financial analyst specializing in technical analysis.
@@ -47,12 +48,12 @@ type TechnicalAnalystResponse struct {
 
 // TechnicalAnalyst analyzes price action and technical indicators
 type TechnicalAnalyst struct {
-	bedrock *services.BedrockService
-	alpaca  *services.AlpacaService
+	bedrock BedrockServiceInterface
+	alpaca  AlpacaServiceInterface
 }
 
 // NewTechnicalAnalyst creates a new TechnicalAnalyst
-func NewTechnicalAnalyst(bedrock *services.BedrockService, alpaca *services.AlpacaService) *TechnicalAnalyst {
+func NewTechnicalAnalyst(bedrock BedrockServiceInterface, alpaca AlpacaServiceInterface) *TechnicalAnalyst {
 	return &TechnicalAnalyst{
 		bedrock: bedrock,
 		alpaca:  alpaca,
@@ -61,9 +62,15 @@ func NewTechnicalAnalyst(bedrock *services.BedrockService, alpaca *services.Alpa
 
 // Analyze performs technical analysis on a stock
 func (a *TechnicalAnalyst) Analyze(ctx context.Context, symbol string) (*Analysis, error) {
-	// Fetch historical price data (100 days for indicator calculation)
+	lookbackDays := 100
+	if val := os.Getenv("TECHNICAL_ANALYSIS_LOOKBACK_DAYS"); val != "" {
+		if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
+			lookbackDays = parsed
+		}
+	}
+
 	end := time.Now()
-	start := end.AddDate(0, 0, -100)
+	start := end.AddDate(0, 0, -lookbackDays)
 
 	bars, err := a.alpaca.GetBars(ctx, symbol, start, end, marketdata.OneDay)
 	if err != nil {
@@ -85,7 +92,7 @@ func (a *TechnicalAnalyst) Analyze(ctx context.Context, symbol string) (*Analysi
 	// Extract close prices for indicator calculation
 	closePrices := make([]float64, len(bars))
 	for i, bar := range bars {
-		closePrices[i] = bar.Close.InexactFloat64()
+		closePrices[i] = bar.Close
 	}
 
 	// Calculate indicators
@@ -112,7 +119,7 @@ Price vs SMA50: %.2f%%
 
 Provide your technical analysis.`,
 		symbol,
-		latestBar.Close.InexactFloat64(),
+		latestBar.Close,
 		indicators["high"].(float64),
 		indicators["low"].(float64),
 		indicators["rsi"].(float64),
@@ -121,8 +128,8 @@ Provide your technical analysis.`,
 		indicators["macd_histogram"].(float64),
 		indicators["sma20"].(float64),
 		indicators["sma50"].(float64),
-		(latestBar.Close.InexactFloat64()-indicators["sma20"].(float64))/indicators["sma20"].(float64)*100,
-		(latestBar.Close.InexactFloat64()-indicators["sma50"].(float64))/indicators["sma50"].(float64)*100,
+		(latestBar.Close/indicators["sma20"].(float64)-1)*100,
+		(latestBar.Close/indicators["sma50"].(float64)-1)*100,
 	)
 
 	// Call Claude via Bedrock

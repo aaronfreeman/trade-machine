@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"os"
+	"strconv"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -18,10 +20,10 @@ type BedrockService struct {
 
 // ClaudeRequest represents the request format for Claude models via Bedrock
 type ClaudeRequest struct {
-	AnthropicVersion string           `json:"anthropic_version"`
-	MaxTokens        int              `json:"max_tokens"`
-	System           string           `json:"system,omitempty"`
-	Messages         []ClaudeMessage  `json:"messages"`
+	AnthropicVersion string          `json:"anthropic_version"`
+	MaxTokens        int             `json:"max_tokens"`
+	System           string          `json:"system,omitempty"`
+	Messages         []ClaudeMessage `json:"messages"`
 }
 
 // ClaudeMessage represents a message in the Claude conversation
@@ -32,10 +34,10 @@ type ClaudeMessage struct {
 
 // ClaudeResponse represents the response from Claude models
 type ClaudeResponse struct {
-	ID           string `json:"id"`
-	Type         string `json:"type"`
-	Role         string `json:"role"`
-	Content      []struct {
+	ID      string `json:"id"`
+	Type    string `json:"type"`
+	Role    string `json:"role"`
+	Content []struct {
 		Type string `json:"type"`
 		Text string `json:"text"`
 	} `json:"content"`
@@ -61,9 +63,21 @@ func NewBedrockService(ctx context.Context, region, modelID string) (*BedrockSer
 
 // InvokeWithPrompt sends a prompt to Claude and returns the response text
 func (s *BedrockService) InvokeWithPrompt(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
+	maxTokens := 4096
+	if val := os.Getenv("BEDROCK_MAX_TOKENS"); val != "" {
+		if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
+			maxTokens = parsed
+		}
+	}
+
+	anthropicVersion := "bedrock-2023-05-31"
+	if val := os.Getenv("BEDROCK_ANTHROPIC_VERSION"); val != "" {
+		anthropicVersion = val
+	}
+
 	request := ClaudeRequest{
-		AnthropicVersion: "bedrock-2023-05-31",
-		MaxTokens:        4096,
+		AnthropicVersion: anthropicVersion,
+		MaxTokens:        maxTokens,
 		System:           systemPrompt,
 		Messages: []ClaudeMessage{
 			{Role: "user", Content: userPrompt},

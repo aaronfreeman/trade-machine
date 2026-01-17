@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"trade-machine/models"
-	"trade-machine/services"
 )
 
 const newsSystemPrompt = `You are a financial analyst specializing in news sentiment analysis.
@@ -43,12 +42,12 @@ type NewsAnalystResponse struct {
 
 // NewsAnalyst analyzes news sentiment
 type NewsAnalyst struct {
-	bedrock *services.BedrockService
-	newsAPI *services.NewsAPIService
+	bedrock BedrockServiceInterface
+	newsAPI NewsAPIServiceInterface
 }
 
 // NewNewsAnalyst creates a new NewsAnalyst
-func NewNewsAnalyst(bedrock *services.BedrockService, newsAPI *services.NewsAPIService) *NewsAnalyst {
+func NewNewsAnalyst(bedrock BedrockServiceInterface, newsAPI NewsAPIServiceInterface) *NewsAnalyst {
 	return &NewsAnalyst{
 		bedrock: bedrock,
 		newsAPI: newsAPI,

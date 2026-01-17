@@ -33,7 +33,16 @@ fmt:
 
 # Run tests
 test:
-    go test ./...
+    DATABASE_URL="postgres://trademachine:trademachine_dev@localhost:5432/trademachine?sslmode=disable" go test -count=1 ./...
+
+# Run tests with coverage report (opens in browser)
+coverage:
+    DATABASE_URL="postgres://trademachine:trademachine_dev@localhost:5432/trademachine?sslmode=disable" go test -count=1 -coverprofile=coverage.out ./...
+    go tool cover -html=coverage.out
+
+# Show coverage summary
+coverage-summary:
+    DATABASE_URL="postgres://trademachine:trademachine_dev@localhost:5432/trademachine?sslmode=disable" go test -count=1 -cover ./...
 
 # Check for issues
 check:

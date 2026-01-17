@@ -1,7 +1,10 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -139,5 +142,123 @@ func TestQuoteResponse_Deserialization(t *testing.T) {
 	}
 	if resp.GlobalQuote.Change != "2.50" {
 		t.Errorf("Change = %v, want '2.50'", resp.GlobalQuote.Change)
+	}
+}
+
+func TestAlphaVantageService_GetFundamentals(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(OverviewResponse{
+			Symbol:        "AAPL",
+			Name:          "Apple Inc",
+			MarketCap:     "2500000000000",
+			PERatio:       "28.5",
+			EPS:           "6.05",
+			DividendYield: "0.005",
+			Week52High:    "199.62",
+			Week52Low:     "164.08",
+			Beta:          "1.25",
+		})
+	}))
+	defer server.Close()
+
+	service := NewAlphaVantageService("test-key")
+	service.baseURL = server.URL
+
+	ctx := context.Background()
+	fundamentals, err := service.GetFundamentals(ctx, "AAPL")
+	if err != nil {
+		t.Fatalf("GetFundamentals failed: %v", err)
+	}
+
+	if fundamentals.Symbol != "AAPL" {
+		t.Errorf("Symbol = %v, want 'AAPL'", fundamentals.Symbol)
+	}
+	if fundamentals.PERatio != 28.5 {
+		t.Errorf("PERatio = %v, want 28.5", fundamentals.PERatio)
+	}
+}
+
+func TestAlphaVantageService_GetNews(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		response := NewsResponse{
+			Items: "2",
+			Feed: []struct {
+				Title            string   `json:"title"`
+				URL              string   `json:"url"`
+				Summary          string   `json:"summary"`
+				Source           string   `json:"source"`
+				TimePublished    string   `json:"time_published"`
+				Authors          []string `json:"authors"`
+				OverallSentiment string   `json:"overall_sentiment_label"`
+				SentimentScore   float64  `json:"overall_sentiment_score"`
+			}{
+				{
+					Title:          "Apple News 1",
+					URL:            "https://example.com/1",
+					Summary:        "Summary 1",
+					Source:         "TechNews",
+					TimePublished:  "20240115T120000",
+					Authors:        []string{"John Doe"},
+					SentimentScore: 0.8,
+				},
+				{
+					Title:          "Apple News 2",
+					URL:            "https://example.com/2",
+					Summary:        "Summary 2",
+					Source:         "BusinessNews",
+					TimePublished:  "20240115T130000",
+					Authors:        []string{"Jane Smith"},
+					SentimentScore: 0.6,
+				},
+			},
+		}
+		json.NewEncoder(w).Encode(response)
+	}))
+	defer server.Close()
+
+	service := NewAlphaVantageService("test-key")
+	service.baseURL = server.URL
+
+	ctx := context.Background()
+	articles, err := service.GetNews(ctx, "AAPL")
+	if err != nil {
+		t.Fatalf("GetNews failed: %v", err)
+	}
+
+	if len(articles) != 2 {
+		t.Errorf("Expected 2 articles, got %d", len(articles))
+	}
+	if articles[0].Title != "Apple News 1" {
+		t.Errorf("First article title = %v, want 'Apple News 1'", articles[0].Title)
+	}
+}
+
+func TestAlphaVantageService_GetQuote(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		response := QuoteResponse{}
+		response.GlobalQuote.Symbol = "AAPL"
+		response.GlobalQuote.Price = "187.50"
+		response.GlobalQuote.Volume = "50000000"
+		json.NewEncoder(w).Encode(response)
+	}))
+	defer server.Close()
+
+	service := NewAlphaVantageService("test-key")
+	service.baseURL = server.URL
+
+	ctx := context.Background()
+	quote, err := service.GetQuote(ctx, "AAPL")
+	if err != nil {
+		t.Fatalf("GetQuote failed: %v", err)
+	}
+
+	if quote.Symbol != "AAPL" {
+		t.Errorf("Symbol = %v, want 'AAPL'", quote.Symbol)
+	}
+	if quote.Volume != 50000000 {
+		t.Errorf("Volume = %v, want 50000000", quote.Volume)
 	}
 }

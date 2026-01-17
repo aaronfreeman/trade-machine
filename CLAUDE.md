@@ -108,10 +108,11 @@ type Analysis struct {
 - Key Factors: List of influential factors (e.g., "High P/E ratio", "Strong earnings growth")
 - Data: Raw fundamentals and key factors list
 
-**Codeing**
+**Coding**
 - Keep code as simple as you can to implement the needed features
 - Always write tests for code
 - Try to keep the overall code coverage above 80%
+- To run tests you can run "just test" it will also show a code coverage amount
 
 **Example Reasoning**:
 "Company is trading at 15x P/E with 25% YoY earnings growth and 3% dividend yield. Metrics suggest good value with moderate growth potential."

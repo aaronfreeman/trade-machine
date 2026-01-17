@@ -2,11 +2,13 @@ package services
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
 	"trade-machine/models"
 
+	"github.com/alpacahq/alpaca-trade-api-go/v3/alpaca"
 	"github.com/alpacahq/alpaca-trade-api-go/v3/marketdata"
 	"github.com/shopspring/decimal"
 )
@@ -216,5 +218,393 @@ func TestPositionSide_Values(t *testing.T) {
 	}
 	if models.PositionSideShort != "short" {
 		t.Errorf("PositionSideShort = %v, want 'short'", models.PositionSideShort)
+	}
+}
+
+// Mock implementations for Alpaca clients
+
+type mockAlpacaTradeClient struct {
+	getAccountFunc    func() (*alpaca.Account, error)
+	placeOrderFunc    func(req alpaca.PlaceOrderRequest) (*alpaca.Order, error)
+	getPositionsFunc  func() ([]alpaca.Position, error)
+	getPositionFunc   func(symbol string) (*alpaca.Position, error)
+}
+
+func (m *mockAlpacaTradeClient) GetAccount() (*alpaca.Account, error) {
+	return m.getAccountFunc()
+}
+
+func (m *mockAlpacaTradeClient) PlaceOrder(req alpaca.PlaceOrderRequest) (*alpaca.Order, error) {
+	return m.placeOrderFunc(req)
+}
+
+func (m *mockAlpacaTradeClient) GetPositions() ([]alpaca.Position, error) {
+	return m.getPositionsFunc()
+}
+
+func (m *mockAlpacaTradeClient) GetPosition(symbol string) (*alpaca.Position, error) {
+	return m.getPositionFunc(symbol)
+}
+
+type mockAlpacaDataClient struct {
+	getLatestQuoteFunc func(symbol string, req marketdata.GetLatestQuoteRequest) (*marketdata.Quote, error)
+	getLatestTradeFunc func(symbol string, req marketdata.GetLatestTradeRequest) (*marketdata.Trade, error)
+	getBarsFunc        func(symbol string, req marketdata.GetBarsRequest) ([]marketdata.Bar, error)
+}
+
+func (m *mockAlpacaDataClient) GetLatestQuote(symbol string, req marketdata.GetLatestQuoteRequest) (*marketdata.Quote, error) {
+	return m.getLatestQuoteFunc(symbol, req)
+}
+
+func (m *mockAlpacaDataClient) GetLatestTrade(symbol string, req marketdata.GetLatestTradeRequest) (*marketdata.Trade, error) {
+	return m.getLatestTradeFunc(symbol, req)
+}
+
+func (m *mockAlpacaDataClient) GetBars(symbol string, req marketdata.GetBarsRequest) ([]marketdata.Bar, error) {
+	return m.getBarsFunc(symbol, req)
+}
+
+func newTestAlpacaService(tradeClient alpacaTradeClient, dataClient alpacaDataClient) *AlpacaService {
+	return &AlpacaService{
+		tradeClient: tradeClient,
+		dataClient:  dataClient,
+	}
+}
+
+func TestPlaceOrder_Success(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	mockTrade := &mockAlpacaTradeClient{
+		placeOrderFunc: func(req alpaca.PlaceOrderRequest) (*alpaca.Order, error) {
+			return &alpaca.Order{ID: "order-123"}, nil
+		},
+	}
+	mockData := &mockAlpacaDataClient{}
+
+	service := newTestAlpacaService(mockTrade, mockData)
+	ctx := context.Background()
+
+	orderID, err := service.PlaceOrder(ctx, "AAPL", decimal.NewFromInt(10), models.TradeSideBuy, "market")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if orderID != "order-123" {
+		t.Errorf("expected order-123, got %s", orderID)
+	}
+}
+
+func TestPlaceOrder_SellSide(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	mockTrade := &mockAlpacaTradeClient{
+		placeOrderFunc: func(req alpaca.PlaceOrderRequest) (*alpaca.Order, error) {
+			if req.Side != alpaca.Sell {
+				t.Errorf("expected sell side, got %v", req.Side)
+			}
+			return &alpaca.Order{ID: "sell-order"}, nil
+		},
+	}
+	mockData := &mockAlpacaDataClient{}
+
+	service := newTestAlpacaService(mockTrade, mockData)
+	ctx := context.Background()
+
+	_, err := service.PlaceOrder(ctx, "AAPL", decimal.NewFromInt(5), models.TradeSideSell, "market")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+}
+
+func TestPlaceOrder_OrderTypes(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	tests := []struct {
+		orderType     string
+		expectedType  alpaca.OrderType
+	}{
+		{"market", alpaca.Market},
+		{"limit", alpaca.Limit},
+		{"stop", alpaca.Stop},
+		{"stop_limit", alpaca.StopLimit},
+		{"unknown", alpaca.Market}, // defaults to market
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.orderType, func(t *testing.T) {
+			mockTrade := &mockAlpacaTradeClient{
+				placeOrderFunc: func(req alpaca.PlaceOrderRequest) (*alpaca.Order, error) {
+					if req.Type != tt.expectedType {
+						t.Errorf("expected %v, got %v", tt.expectedType, req.Type)
+					}
+					return &alpaca.Order{ID: "test"}, nil
+				},
+			}
+			mockData := &mockAlpacaDataClient{}
+
+			service := newTestAlpacaService(mockTrade, mockData)
+			ctx := context.Background()
+
+			_, err := service.PlaceOrder(ctx, "AAPL", decimal.NewFromInt(1), models.TradeSideBuy, tt.orderType)
+			if err != nil {
+				t.Errorf("unexpected error: %v", err)
+			}
+		})
+	}
+}
+
+func TestPlaceOrder_Error(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	mockTrade := &mockAlpacaTradeClient{
+		placeOrderFunc: func(req alpaca.PlaceOrderRequest) (*alpaca.Order, error) {
+			return nil, errors.New("insufficient funds")
+		},
+	}
+	mockData := &mockAlpacaDataClient{}
+
+	service := newTestAlpacaService(mockTrade, mockData)
+	ctx := context.Background()
+
+	_, err := service.PlaceOrder(ctx, "AAPL", decimal.NewFromInt(10), models.TradeSideBuy, "market")
+	if err == nil {
+		t.Error("expected error")
+	}
+}
+
+func TestGetPositions_Success(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	currentPrice := decimal.NewFromFloat(150.00)
+	unrealizedPL := decimal.NewFromFloat(50.00)
+
+	mockTrade := &mockAlpacaTradeClient{
+		getPositionsFunc: func() ([]alpaca.Position, error) {
+			return []alpaca.Position{
+				{
+					Symbol:        "AAPL",
+					Qty:           decimal.NewFromInt(10),
+					AvgEntryPrice: decimal.NewFromFloat(145.00),
+					CurrentPrice:  &currentPrice,
+					UnrealizedPL:  &unrealizedPL,
+					Side:          "long",
+				},
+			}, nil
+		},
+	}
+	mockData := &mockAlpacaDataClient{}
+
+	service := newTestAlpacaService(mockTrade, mockData)
+	ctx := context.Background()
+
+	positions, err := service.GetPositions(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(positions) != 1 {
+		t.Fatalf("expected 1 position, got %d", len(positions))
+	}
+	if positions[0].Symbol != "AAPL" {
+		t.Errorf("expected AAPL, got %s", positions[0].Symbol)
+	}
+	if positions[0].Side != models.PositionSideLong {
+		t.Errorf("expected long, got %s", positions[0].Side)
+	}
+}
+
+func TestGetPositions_ShortSide(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	mockTrade := &mockAlpacaTradeClient{
+		getPositionsFunc: func() ([]alpaca.Position, error) {
+			return []alpaca.Position{
+				{
+					Symbol:        "TSLA",
+					Qty:           decimal.NewFromInt(5),
+					AvgEntryPrice: decimal.NewFromFloat(200.00),
+					Side:          "short",
+				},
+			}, nil
+		},
+	}
+	mockData := &mockAlpacaDataClient{}
+
+	service := newTestAlpacaService(mockTrade, mockData)
+	ctx := context.Background()
+
+	positions, err := service.GetPositions(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if positions[0].Side != models.PositionSideShort {
+		t.Errorf("expected short, got %s", positions[0].Side)
+	}
+}
+
+func TestGetPositions_NilFields(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	mockTrade := &mockAlpacaTradeClient{
+		getPositionsFunc: func() ([]alpaca.Position, error) {
+			return []alpaca.Position{
+				{
+					Symbol:        "NVDA",
+					Qty:           decimal.NewFromInt(3),
+					AvgEntryPrice: decimal.NewFromFloat(500.00),
+					CurrentPrice:  nil, // nil pointer
+					UnrealizedPL:  nil, // nil pointer
+					Side:          "long",
+				},
+			}, nil
+		},
+	}
+	mockData := &mockAlpacaDataClient{}
+
+	service := newTestAlpacaService(mockTrade, mockData)
+	ctx := context.Background()
+
+	positions, err := service.GetPositions(ctx)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !positions[0].CurrentPrice.IsZero() {
+		t.Errorf("expected zero current price, got %s", positions[0].CurrentPrice)
+	}
+	if !positions[0].UnrealizedPL.IsZero() {
+		t.Errorf("expected zero unrealized P/L, got %s", positions[0].UnrealizedPL)
+	}
+}
+
+func TestGetPositions_Error(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	mockTrade := &mockAlpacaTradeClient{
+		getPositionsFunc: func() ([]alpaca.Position, error) {
+			return nil, errors.New("API error")
+		},
+	}
+	mockData := &mockAlpacaDataClient{}
+
+	service := newTestAlpacaService(mockTrade, mockData)
+	ctx := context.Background()
+
+	_, err := service.GetPositions(ctx)
+	if err == nil {
+		t.Error("expected error")
+	}
+}
+
+func TestGetPosition_Success(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	currentPrice := decimal.NewFromFloat(175.00)
+	unrealizedPL := decimal.NewFromFloat(25.00)
+
+	mockTrade := &mockAlpacaTradeClient{
+		getPositionFunc: func(symbol string) (*alpaca.Position, error) {
+			if symbol != "AAPL" {
+				t.Errorf("expected AAPL, got %s", symbol)
+			}
+			return &alpaca.Position{
+				Symbol:        symbol,
+				Qty:           decimal.NewFromInt(20),
+				AvgEntryPrice: decimal.NewFromFloat(173.75),
+				CurrentPrice:  &currentPrice,
+				UnrealizedPL:  &unrealizedPL,
+				Side:          "long",
+			}, nil
+		},
+	}
+	mockData := &mockAlpacaDataClient{}
+
+	service := newTestAlpacaService(mockTrade, mockData)
+	ctx := context.Background()
+
+	position, err := service.GetPosition(ctx, "AAPL")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if position.Symbol != "AAPL" {
+		t.Errorf("expected AAPL, got %s", position.Symbol)
+	}
+	if position.Quantity.IntPart() != 20 {
+		t.Errorf("expected 20 shares, got %d", position.Quantity.IntPart())
+	}
+}
+
+func TestGetPosition_ShortSide(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	mockTrade := &mockAlpacaTradeClient{
+		getPositionFunc: func(symbol string) (*alpaca.Position, error) {
+			return &alpaca.Position{
+				Symbol:        symbol,
+				Qty:           decimal.NewFromInt(10),
+				AvgEntryPrice: decimal.NewFromFloat(100.00),
+				Side:          "short",
+			}, nil
+		},
+	}
+	mockData := &mockAlpacaDataClient{}
+
+	service := newTestAlpacaService(mockTrade, mockData)
+	ctx := context.Background()
+
+	position, err := service.GetPosition(ctx, "GME")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if position.Side != models.PositionSideShort {
+		t.Errorf("expected short, got %s", position.Side)
+	}
+}
+
+func TestGetPosition_NilFields(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	mockTrade := &mockAlpacaTradeClient{
+		getPositionFunc: func(symbol string) (*alpaca.Position, error) {
+			return &alpaca.Position{
+				Symbol:        symbol,
+				Qty:           decimal.NewFromInt(5),
+				AvgEntryPrice: decimal.NewFromFloat(50.00),
+				CurrentPrice:  nil,
+				UnrealizedPL:  nil,
+				Side:          "long",
+			}, nil
+		},
+	}
+	mockData := &mockAlpacaDataClient{}
+
+	service := newTestAlpacaService(mockTrade, mockData)
+	ctx := context.Background()
+
+	position, err := service.GetPosition(ctx, "XYZ")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if !position.CurrentPrice.IsZero() {
+		t.Errorf("expected zero current price")
+	}
+	if !position.UnrealizedPL.IsZero() {
+		t.Errorf("expected zero unrealized P/L")
+	}
+}
+
+func TestGetPosition_Error(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	mockTrade := &mockAlpacaTradeClient{
+		getPositionFunc: func(symbol string) (*alpaca.Position, error) {
+			return nil, errors.New("position not found")
+		},
+	}
+	mockData := &mockAlpacaDataClient{}
+
+	service := newTestAlpacaService(mockTrade, mockData)
+	ctx := context.Background()
+
+	_, err := service.GetPosition(ctx, "INVALID")
+	if err == nil {
+		t.Error("expected error")
 	}
 }

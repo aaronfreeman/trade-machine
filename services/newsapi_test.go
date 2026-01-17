@@ -4,6 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -332,5 +334,277 @@ func TestNewNewsAPIService_Configuration(t *testing.T) {
 				t.Errorf("baseURL = %v, want 'https://newsapi.org/v2'", service.baseURL)
 			}
 		})
+	}
+}
+
+func TestGetNews_WithMockServer(t *testing.T) {
+	// Reset circuit breaker for test isolation
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Verify request parameters
+		if r.URL.Path != "/everything" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+		if r.Header.Get("X-Api-Key") != "test-key" {
+			t.Errorf("missing or wrong API key header")
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{
+			"status": "ok",
+			"totalResults": 2,
+			"articles": [
+				{
+					"source": {"id": "src1", "name": "Source One"},
+					"author": "Author One",
+					"title": "Test Article 1",
+					"description": "Description 1",
+					"url": "https://example.com/1",
+					"urlToImage": "https://example.com/img1.jpg",
+					"publishedAt": "2024-01-15T10:00:00Z",
+					"content": "Content 1"
+				},
+				{
+					"source": {"id": "src2", "name": "Source Two"},
+					"author": "Author Two",
+					"title": "Test Article 2",
+					"description": "Description 2",
+					"url": "https://example.com/2",
+					"urlToImage": "https://example.com/img2.jpg",
+					"publishedAt": "2024-01-15T11:00:00Z",
+					"content": "Content 2"
+				}
+			]
+		}`))
+	}))
+	defer server.Close()
+
+	service := NewNewsAPIService("test-key")
+	service.baseURL = server.URL
+
+	ctx := context.Background()
+	articles, err := service.GetNews(ctx, "AAPL", 10)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(articles) != 2 {
+		t.Errorf("expected 2 articles, got %d", len(articles))
+	}
+	if articles[0].Title != "Test Article 1" {
+		t.Errorf("unexpected title: %s", articles[0].Title)
+	}
+	if articles[0].Source != "Source One" {
+		t.Errorf("unexpected source: %s", articles[0].Source)
+	}
+}
+
+func TestGetNews_InvalidTimestamp(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{
+			"status": "ok",
+			"totalResults": 1,
+			"articles": [
+				{
+					"source": {"id": "src1", "name": "Source"},
+					"author": "Author",
+					"title": "Test",
+					"description": "Desc",
+					"url": "https://example.com",
+					"urlToImage": "https://example.com/img.jpg",
+					"publishedAt": "invalid-timestamp",
+					"content": "Content"
+				}
+			]
+		}`))
+	}))
+	defer server.Close()
+
+	service := NewNewsAPIService("test-key")
+	service.baseURL = server.URL
+
+	ctx := context.Background()
+	articles, err := service.GetNews(ctx, "AAPL", 10)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(articles) != 1 {
+		t.Errorf("expected 1 article, got %d", len(articles))
+	}
+	// Invalid timestamp should default to current time (non-zero)
+	if articles[0].PublishedAt.IsZero() {
+		t.Error("expected non-zero timestamp for invalid input")
+	}
+}
+
+func TestGetNews_NonOKStatus(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	service := NewNewsAPIService("test-key")
+	service.baseURL = server.URL
+
+	ctx := context.Background()
+	_, err := service.GetNews(ctx, "AAPL", 10)
+
+	if err == nil {
+		t.Error("expected error for non-OK status")
+	}
+}
+
+func TestGetNews_InvalidJSON(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{invalid json`))
+	}))
+	defer server.Close()
+
+	service := NewNewsAPIService("test-key")
+	service.baseURL = server.URL
+
+	ctx := context.Background()
+	_, err := service.GetNews(ctx, "AAPL", 10)
+
+	if err == nil {
+		t.Error("expected error for invalid JSON")
+	}
+}
+
+func TestGetHeadlines_WithMockServer(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/top-headlines" {
+			t.Errorf("unexpected path: %s", r.URL.Path)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{
+			"status": "ok",
+			"totalResults": 1,
+			"articles": [
+				{
+					"source": {"id": "bbc", "name": "BBC News"},
+					"author": "BBC Reporter",
+					"title": "Breaking News",
+					"description": "Important news",
+					"url": "https://bbc.com/news",
+					"urlToImage": "https://bbc.com/img.jpg",
+					"publishedAt": "2024-01-15T12:00:00Z",
+					"content": "Full story"
+				}
+			]
+		}`))
+	}))
+	defer server.Close()
+
+	service := NewNewsAPIService("test-key")
+	service.baseURL = server.URL
+
+	ctx := context.Background()
+	articles, err := service.GetHeadlines(ctx, "Tesla", 10)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(articles) != 1 {
+		t.Errorf("expected 1 article, got %d", len(articles))
+	}
+	if articles[0].Source != "BBC News" {
+		t.Errorf("unexpected source: %s", articles[0].Source)
+	}
+}
+
+func TestGetHeadlines_InvalidTimestamp(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{
+			"status": "ok",
+			"totalResults": 1,
+			"articles": [
+				{
+					"source": {"id": "src", "name": "Source"},
+					"author": "Author",
+					"title": "Title",
+					"description": "Desc",
+					"url": "https://example.com",
+					"urlToImage": "",
+					"publishedAt": "bad-date",
+					"content": ""
+				}
+			]
+		}`))
+	}))
+	defer server.Close()
+
+	service := NewNewsAPIService("test-key")
+	service.baseURL = server.URL
+
+	ctx := context.Background()
+	articles, err := service.GetHeadlines(ctx, "AAPL", 10)
+
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if articles[0].PublishedAt.IsZero() {
+		t.Error("expected fallback timestamp for invalid date")
+	}
+}
+
+func TestGetHeadlines_NonOKStatus(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer server.Close()
+
+	service := NewNewsAPIService("test-key")
+	service.baseURL = server.URL
+
+	ctx := context.Background()
+	_, err := service.GetHeadlines(ctx, "AAPL", 10)
+
+	if err == nil {
+		t.Error("expected error for non-OK status")
+	}
+}
+
+func TestGetHeadlines_InvalidJSON(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`not json`))
+	}))
+	defer server.Close()
+
+	service := NewNewsAPIService("test-key")
+	service.baseURL = server.URL
+
+	ctx := context.Background()
+	_, err := service.GetHeadlines(ctx, "AAPL", 10)
+
+	if err == nil {
+		t.Error("expected error for invalid JSON")
 	}
 }

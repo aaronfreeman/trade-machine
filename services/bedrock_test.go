@@ -3,9 +3,13 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"strings"
 	"testing"
 
 	"trade-machine/config"
+
+	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 )
 
 func TestClaudeRequest_Serialization(t *testing.T) {
@@ -390,4 +394,313 @@ func containsHelper(s, substr string) bool {
 		}
 	}
 	return false
+}
+
+// mockBedrockClient implements bedrockClient for testing
+type mockBedrockClient struct {
+	invokeFunc func(ctx context.Context, params *bedrockruntime.InvokeModelInput, optFns ...func(*bedrockruntime.Options)) (*bedrockruntime.InvokeModelOutput, error)
+}
+
+func (m *mockBedrockClient) InvokeModel(ctx context.Context, params *bedrockruntime.InvokeModelInput, optFns ...func(*bedrockruntime.Options)) (*bedrockruntime.InvokeModelOutput, error) {
+	return m.invokeFunc(ctx, params, optFns...)
+}
+
+func newTestBedrockService(client bedrockClient) *BedrockService {
+	return &BedrockService{
+		client:           client,
+		model:            "test-model",
+		maxTokens:        4096,
+		anthropicVersion: "bedrock-2023-05-31",
+	}
+}
+
+func TestInvokeWithPrompt_Success(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	mockClient := &mockBedrockClient{
+		invokeFunc: func(ctx context.Context, params *bedrockruntime.InvokeModelInput, optFns ...func(*bedrockruntime.Options)) (*bedrockruntime.InvokeModelOutput, error) {
+			response := `{
+				"id": "msg_123",
+				"type": "message",
+				"role": "assistant",
+				"content": [{"type": "text", "text": "Hello from Claude!"}],
+				"stop_reason": "end_turn"
+			}`
+			return &bedrockruntime.InvokeModelOutput{
+				Body: []byte(response),
+			}, nil
+		},
+	}
+
+	service := newTestBedrockService(mockClient)
+	ctx := context.Background()
+
+	result, err := service.InvokeWithPrompt(ctx, "You are helpful", "Say hello")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != "Hello from Claude!" {
+		t.Errorf("expected 'Hello from Claude!', got '%s'", result)
+	}
+}
+
+func TestInvokeWithPrompt_APIError(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	mockClient := &mockBedrockClient{
+		invokeFunc: func(ctx context.Context, params *bedrockruntime.InvokeModelInput, optFns ...func(*bedrockruntime.Options)) (*bedrockruntime.InvokeModelOutput, error) {
+			return nil, errors.New("API error")
+		},
+	}
+
+	service := newTestBedrockService(mockClient)
+	ctx := context.Background()
+
+	_, err := service.InvokeWithPrompt(ctx, "system", "user")
+	if err == nil {
+		t.Error("expected error")
+	}
+	if !strings.Contains(err.Error(), "failed to invoke model") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+func TestInvokeWithPrompt_InvalidJSON(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	mockClient := &mockBedrockClient{
+		invokeFunc: func(ctx context.Context, params *bedrockruntime.InvokeModelInput, optFns ...func(*bedrockruntime.Options)) (*bedrockruntime.InvokeModelOutput, error) {
+			return &bedrockruntime.InvokeModelOutput{
+				Body: []byte(`{invalid json`),
+			}, nil
+		},
+	}
+
+	service := newTestBedrockService(mockClient)
+	ctx := context.Background()
+
+	_, err := service.InvokeWithPrompt(ctx, "system", "user")
+	if err == nil {
+		t.Error("expected error for invalid JSON")
+	}
+	if !strings.Contains(err.Error(), "failed to unmarshal response") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+func TestInvokeWithPrompt_EmptyContent(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	mockClient := &mockBedrockClient{
+		invokeFunc: func(ctx context.Context, params *bedrockruntime.InvokeModelInput, optFns ...func(*bedrockruntime.Options)) (*bedrockruntime.InvokeModelOutput, error) {
+			response := `{
+				"id": "msg_123",
+				"type": "message",
+				"role": "assistant",
+				"content": [],
+				"stop_reason": "end_turn"
+			}`
+			return &bedrockruntime.InvokeModelOutput{
+				Body: []byte(response),
+			}, nil
+		},
+	}
+
+	service := newTestBedrockService(mockClient)
+	ctx := context.Background()
+
+	_, err := service.InvokeWithPrompt(ctx, "system", "user")
+	if err == nil {
+		t.Error("expected error for empty content")
+	}
+	if !strings.Contains(err.Error(), "empty response from model") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+func TestInvokeStructured_Success(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	mockClient := &mockBedrockClient{
+		invokeFunc: func(ctx context.Context, params *bedrockruntime.InvokeModelInput, optFns ...func(*bedrockruntime.Options)) (*bedrockruntime.InvokeModelOutput, error) {
+			response := `{
+				"id": "msg_123",
+				"type": "message",
+				"role": "assistant",
+				"content": [{"type": "text", "text": "{\"score\": 85, \"confidence\": 90}"}],
+				"stop_reason": "end_turn"
+			}`
+			return &bedrockruntime.InvokeModelOutput{
+				Body: []byte(response),
+			}, nil
+		},
+	}
+
+	service := newTestBedrockService(mockClient)
+	ctx := context.Background()
+
+	type Result struct {
+		Score      int `json:"score"`
+		Confidence int `json:"confidence"`
+	}
+
+	var result Result
+	err := service.InvokeStructured(ctx, "system", "user", &result)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.Score != 85 || result.Confidence != 90 {
+		t.Errorf("unexpected result: %+v", result)
+	}
+}
+
+func TestInvokeStructured_InvalidStructuredJSON(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	mockClient := &mockBedrockClient{
+		invokeFunc: func(ctx context.Context, params *bedrockruntime.InvokeModelInput, optFns ...func(*bedrockruntime.Options)) (*bedrockruntime.InvokeModelOutput, error) {
+			response := `{
+				"id": "msg_123",
+				"type": "message",
+				"role": "assistant",
+				"content": [{"type": "text", "text": "not valid json"}],
+				"stop_reason": "end_turn"
+			}`
+			return &bedrockruntime.InvokeModelOutput{
+				Body: []byte(response),
+			}, nil
+		},
+	}
+
+	service := newTestBedrockService(mockClient)
+	ctx := context.Background()
+
+	var result map[string]interface{}
+	err := service.InvokeStructured(ctx, "system", "user", &result)
+	if err == nil {
+		t.Error("expected error for invalid structured JSON")
+	}
+	if !strings.Contains(err.Error(), "failed to parse response as JSON") {
+		t.Errorf("unexpected error message: %v", err)
+	}
+}
+
+func TestInvokeStructured_APIError(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	mockClient := &mockBedrockClient{
+		invokeFunc: func(ctx context.Context, params *bedrockruntime.InvokeModelInput, optFns ...func(*bedrockruntime.Options)) (*bedrockruntime.InvokeModelOutput, error) {
+			return nil, errors.New("API error")
+		},
+	}
+
+	service := newTestBedrockService(mockClient)
+	ctx := context.Background()
+
+	var result map[string]interface{}
+	err := service.InvokeStructured(ctx, "system", "user", &result)
+	if err == nil {
+		t.Error("expected error")
+	}
+}
+
+func TestChat_Success(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	mockClient := &mockBedrockClient{
+		invokeFunc: func(ctx context.Context, params *bedrockruntime.InvokeModelInput, optFns ...func(*bedrockruntime.Options)) (*bedrockruntime.InvokeModelOutput, error) {
+			response := `{
+				"id": "msg_123",
+				"type": "message",
+				"role": "assistant",
+				"content": [{"type": "text", "text": "I'm doing well, thank you!"}],
+				"stop_reason": "end_turn"
+			}`
+			return &bedrockruntime.InvokeModelOutput{
+				Body: []byte(response),
+			}, nil
+		},
+	}
+
+	service := newTestBedrockService(mockClient)
+	ctx := context.Background()
+
+	messages := []ClaudeMessage{
+		{Role: "user", Content: "Hello"},
+		{Role: "assistant", Content: "Hi there!"},
+		{Role: "user", Content: "How are you?"},
+	}
+
+	result, err := service.Chat(ctx, "You are helpful", messages)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result != "I'm doing well, thank you!" {
+		t.Errorf("unexpected result: %s", result)
+	}
+}
+
+func TestChat_APIError(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	mockClient := &mockBedrockClient{
+		invokeFunc: func(ctx context.Context, params *bedrockruntime.InvokeModelInput, optFns ...func(*bedrockruntime.Options)) (*bedrockruntime.InvokeModelOutput, error) {
+			return nil, errors.New("API error")
+		},
+	}
+
+	service := newTestBedrockService(mockClient)
+	ctx := context.Background()
+
+	_, err := service.Chat(ctx, "system", []ClaudeMessage{{Role: "user", Content: "test"}})
+	if err == nil {
+		t.Error("expected error")
+	}
+}
+
+func TestChat_InvalidJSON(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	mockClient := &mockBedrockClient{
+		invokeFunc: func(ctx context.Context, params *bedrockruntime.InvokeModelInput, optFns ...func(*bedrockruntime.Options)) (*bedrockruntime.InvokeModelOutput, error) {
+			return &bedrockruntime.InvokeModelOutput{
+				Body: []byte(`not json`),
+			}, nil
+		},
+	}
+
+	service := newTestBedrockService(mockClient)
+	ctx := context.Background()
+
+	_, err := service.Chat(ctx, "system", []ClaudeMessage{{Role: "user", Content: "test"}})
+	if err == nil {
+		t.Error("expected error for invalid JSON")
+	}
+}
+
+func TestChat_EmptyContent(t *testing.T) {
+	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
+
+	mockClient := &mockBedrockClient{
+		invokeFunc: func(ctx context.Context, params *bedrockruntime.InvokeModelInput, optFns ...func(*bedrockruntime.Options)) (*bedrockruntime.InvokeModelOutput, error) {
+			response := `{
+				"id": "msg_123",
+				"type": "message",
+				"role": "assistant",
+				"content": [],
+				"stop_reason": "end_turn"
+			}`
+			return &bedrockruntime.InvokeModelOutput{
+				Body: []byte(response),
+			}, nil
+		},
+	}
+
+	service := newTestBedrockService(mockClient)
+	ctx := context.Background()
+
+	_, err := service.Chat(ctx, "system", []ClaudeMessage{{Role: "user", Content: "test"}})
+	if err == nil {
+		t.Error("expected error for empty content")
+	}
 }

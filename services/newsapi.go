@@ -56,36 +56,104 @@ func (s *NewsAPIService) GetNews(ctx context.Context, query string, limit int) (
 		limit = 100
 	}
 
-	var articles []models.NewsArticle
-	err := WithRetry(ctx, DefaultRetryConfig, func() error {
+	return WithCircuitBreaker(ctx, BreakerNewsAPI, func() ([]models.NewsArticle, error) {
+		var articles []models.NewsArticle
+		err := WithRetry(ctx, DefaultRetryConfig, func() error {
+			params := url.Values{}
+			params.Set("q", query)
+			params.Set("language", "en")
+			params.Set("sortBy", "publishedAt")
+			params.Set("pageSize", fmt.Sprintf("%d", limit))
+
+			req, err := http.NewRequestWithContext(ctx, "GET", s.baseURL+"/everything?"+params.Encode(), nil)
+			if err != nil {
+				return fmt.Errorf("failed to create request: %w", err)
+			}
+			req.Header.Set("X-Api-Key", s.apiKey)
+
+			resp, err := s.httpClient.Do(req)
+			if err != nil {
+				return fmt.Errorf("failed to fetch news: %w", err)
+			}
+			defer resp.Body.Close()
+
+			if resp.StatusCode != http.StatusOK {
+				return fmt.Errorf("NewsAPI returned status %d", resp.StatusCode)
+			}
+
+			var newsResp NewsAPIResponse
+			if err := json.NewDecoder(resp.Body).Decode(&newsResp); err != nil {
+				return fmt.Errorf("failed to decode response: %w", err)
+			}
+
+			articles = make([]models.NewsArticle, 0, len(newsResp.Articles))
+			for _, item := range newsResp.Articles {
+				publishedAt, err := time.Parse(time.RFC3339, item.PublishedAt)
+				if err != nil {
+					observability.Warn("failed to parse timestamp, using current time", "value", item.PublishedAt, "error", err)
+					publishedAt = time.Now()
+				}
+
+				articles = append(articles, models.NewsArticle{
+					Title:       item.Title,
+					Description: item.Description,
+					URL:         item.URL,
+					Source:      item.Source.Name,
+					Author:      item.Author,
+					ImageURL:    item.URLToImage,
+					PublishedAt: publishedAt,
+				})
+			}
+
+			return nil
+		})
+
+		if err != nil {
+			return nil, err
+		}
+
+		return articles, nil
+	})
+}
+
+// GetHeadlines returns top headlines mentioning a company or stock
+func (s *NewsAPIService) GetHeadlines(ctx context.Context, query string, limit int) ([]models.NewsArticle, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+	if limit > 100 {
+		limit = 100
+	}
+
+	return WithCircuitBreaker(ctx, BreakerNewsAPI, func() ([]models.NewsArticle, error) {
 		params := url.Values{}
 		params.Set("q", query)
-		params.Set("language", "en")
-		params.Set("sortBy", "publishedAt")
+		params.Set("country", "us")
+		params.Set("category", "business")
 		params.Set("pageSize", fmt.Sprintf("%d", limit))
 
-		req, err := http.NewRequestWithContext(ctx, "GET", s.baseURL+"/everything?"+params.Encode(), nil)
+		req, err := http.NewRequestWithContext(ctx, "GET", s.baseURL+"/top-headlines?"+params.Encode(), nil)
 		if err != nil {
-			return fmt.Errorf("failed to create request: %w", err)
+			return nil, fmt.Errorf("failed to create request: %w", err)
 		}
 		req.Header.Set("X-Api-Key", s.apiKey)
 
 		resp, err := s.httpClient.Do(req)
 		if err != nil {
-			return fmt.Errorf("failed to fetch news: %w", err)
+			return nil, fmt.Errorf("failed to fetch headlines: %w", err)
 		}
 		defer resp.Body.Close()
 
 		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("NewsAPI returned status %d", resp.StatusCode)
+			return nil, fmt.Errorf("NewsAPI returned status %d", resp.StatusCode)
 		}
 
 		var newsResp NewsAPIResponse
 		if err := json.NewDecoder(resp.Body).Decode(&newsResp); err != nil {
-			return fmt.Errorf("failed to decode response: %w", err)
+			return nil, fmt.Errorf("failed to decode response: %w", err)
 		}
 
-		articles = make([]models.NewsArticle, 0, len(newsResp.Articles))
+		articles := make([]models.NewsArticle, 0, len(newsResp.Articles))
 		for _, item := range newsResp.Articles {
 			publishedAt, err := time.Parse(time.RFC3339, item.PublishedAt)
 			if err != nil {
@@ -104,70 +172,6 @@ func (s *NewsAPIService) GetNews(ctx context.Context, query string, limit int) (
 			})
 		}
 
-		return nil
+		return articles, nil
 	})
-
-	if err != nil {
-		return nil, err
-	}
-
-	return articles, nil
-}
-
-// GetHeadlines returns top headlines mentioning a company or stock
-func (s *NewsAPIService) GetHeadlines(ctx context.Context, query string, limit int) ([]models.NewsArticle, error) {
-	if limit <= 0 {
-		limit = 10
-	}
-	if limit > 100 {
-		limit = 100
-	}
-
-	params := url.Values{}
-	params.Set("q", query)
-	params.Set("country", "us")
-	params.Set("category", "business")
-	params.Set("pageSize", fmt.Sprintf("%d", limit))
-
-	req, err := http.NewRequestWithContext(ctx, "GET", s.baseURL+"/top-headlines?"+params.Encode(), nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-	req.Header.Set("X-Api-Key", s.apiKey)
-
-	resp, err := s.httpClient.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("failed to fetch headlines: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("NewsAPI returned status %d", resp.StatusCode)
-	}
-
-	var newsResp NewsAPIResponse
-	if err := json.NewDecoder(resp.Body).Decode(&newsResp); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
-	}
-
-	articles := make([]models.NewsArticle, 0, len(newsResp.Articles))
-	for _, item := range newsResp.Articles {
-		publishedAt, err := time.Parse(time.RFC3339, item.PublishedAt)
-		if err != nil {
-			observability.Warn("failed to parse timestamp, using current time", "value", item.PublishedAt, "error", err)
-			publishedAt = time.Now()
-		}
-
-		articles = append(articles, models.NewsArticle{
-			Title:       item.Title,
-			Description: item.Description,
-			URL:         item.URL,
-			Source:      item.Source.Name,
-			Author:      item.Author,
-			ImageURL:    item.URLToImage,
-			PublishedAt: publishedAt,
-		})
-	}
-
-	return articles, nil
 }

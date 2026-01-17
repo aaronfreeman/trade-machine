@@ -12,9 +12,14 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/bedrockruntime"
 )
 
+// bedrockClient defines the interface for Bedrock API calls (for testing)
+type bedrockClient interface {
+	InvokeModel(ctx context.Context, params *bedrockruntime.InvokeModelInput, optFns ...func(*bedrockruntime.Options)) (*bedrockruntime.InvokeModelOutput, error)
+}
+
 // BedrockService handles communication with AWS Bedrock for Claude models
 type BedrockService struct {
-	client           *bedrockruntime.Client
+	client           bedrockClient
 	model            string
 	maxTokens        int
 	anthropicVersion string
@@ -67,39 +72,41 @@ func NewBedrockService(ctx context.Context, cfg *appconfig.Config) (*BedrockServ
 
 // InvokeWithPrompt sends a prompt to Claude and returns the response text
 func (s *BedrockService) InvokeWithPrompt(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
-	request := ClaudeRequest{
-		AnthropicVersion: s.anthropicVersion,
-		MaxTokens:        s.maxTokens,
-		System:           systemPrompt,
-		Messages: []ClaudeMessage{
-			{Role: "user", Content: userPrompt},
-		},
-	}
+	return WithCircuitBreaker(ctx, BreakerBedrock, func() (string, error) {
+		request := ClaudeRequest{
+			AnthropicVersion: s.anthropicVersion,
+			MaxTokens:        s.maxTokens,
+			System:           systemPrompt,
+			Messages: []ClaudeMessage{
+				{Role: "user", Content: userPrompt},
+			},
+		}
 
-	reqBody, err := json.Marshal(request)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal request: %w", err)
-	}
+		reqBody, err := json.Marshal(request)
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal request: %w", err)
+		}
 
-	output, err := s.client.InvokeModel(ctx, &bedrockruntime.InvokeModelInput{
-		ModelId:     aws.String(s.model),
-		Body:        reqBody,
-		ContentType: aws.String("application/json"),
+		output, err := s.client.InvokeModel(ctx, &bedrockruntime.InvokeModelInput{
+			ModelId:     aws.String(s.model),
+			Body:        reqBody,
+			ContentType: aws.String("application/json"),
+		})
+		if err != nil {
+			return "", fmt.Errorf("failed to invoke model: %w", err)
+		}
+
+		var response ClaudeResponse
+		if err := json.Unmarshal(output.Body, &response); err != nil {
+			return "", fmt.Errorf("failed to unmarshal response: %w", err)
+		}
+
+		if len(response.Content) == 0 {
+			return "", fmt.Errorf("empty response from model")
+		}
+
+		return response.Content[0].Text, nil
 	})
-	if err != nil {
-		return "", fmt.Errorf("failed to invoke model: %w", err)
-	}
-
-	var response ClaudeResponse
-	if err := json.Unmarshal(output.Body, &response); err != nil {
-		return "", fmt.Errorf("failed to unmarshal response: %w", err)
-	}
-
-	if len(response.Content) == 0 {
-		return "", fmt.Errorf("empty response from model")
-	}
-
-	return response.Content[0].Text, nil
 }
 
 // InvokeStructured sends a prompt and parses the JSON response into the provided struct
@@ -119,35 +126,37 @@ func (s *BedrockService) InvokeStructured(ctx context.Context, systemPrompt, use
 
 // Chat enables multi-turn conversation with Claude
 func (s *BedrockService) Chat(ctx context.Context, systemPrompt string, messages []ClaudeMessage) (string, error) {
-	request := ClaudeRequest{
-		AnthropicVersion: s.anthropicVersion,
-		MaxTokens:        s.maxTokens,
-		System:           systemPrompt,
-		Messages:         messages,
-	}
+	return WithCircuitBreaker(ctx, BreakerBedrock, func() (string, error) {
+		request := ClaudeRequest{
+			AnthropicVersion: s.anthropicVersion,
+			MaxTokens:        s.maxTokens,
+			System:           systemPrompt,
+			Messages:         messages,
+		}
 
-	reqBody, err := json.Marshal(request)
-	if err != nil {
-		return "", fmt.Errorf("failed to marshal request: %w", err)
-	}
+		reqBody, err := json.Marshal(request)
+		if err != nil {
+			return "", fmt.Errorf("failed to marshal request: %w", err)
+		}
 
-	output, err := s.client.InvokeModel(ctx, &bedrockruntime.InvokeModelInput{
-		ModelId:     aws.String(s.model),
-		Body:        reqBody,
-		ContentType: aws.String("application/json"),
+		output, err := s.client.InvokeModel(ctx, &bedrockruntime.InvokeModelInput{
+			ModelId:     aws.String(s.model),
+			Body:        reqBody,
+			ContentType: aws.String("application/json"),
+		})
+		if err != nil {
+			return "", fmt.Errorf("failed to invoke model: %w", err)
+		}
+
+		var response ClaudeResponse
+		if err := json.Unmarshal(output.Body, &response); err != nil {
+			return "", fmt.Errorf("failed to unmarshal response: %w", err)
+		}
+
+		if len(response.Content) == 0 {
+			return "", fmt.Errorf("empty response from model")
+		}
+
+		return response.Content[0].Text, nil
 	})
-	if err != nil {
-		return "", fmt.Errorf("failed to invoke model: %w", err)
-	}
-
-	var response ClaudeResponse
-	if err := json.Unmarshal(output.Body, &response); err != nil {
-		return "", fmt.Errorf("failed to unmarshal response: %w", err)
-	}
-
-	if len(response.Content) == 0 {
-		return "", fmt.Errorf("empty response from model")
-	}
-
-	return response.Content[0].Text, nil
 }

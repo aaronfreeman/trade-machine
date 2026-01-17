@@ -10,6 +10,7 @@ import (
 
 	"trade-machine/config"
 	"trade-machine/models"
+	"trade-machine/services"
 	"trade-machine/templates"
 
 	"github.com/go-chi/chi/v5"
@@ -51,6 +52,18 @@ func (h *APIHandler) handleHealth(w http.ResponseWriter, r *http.Request) {
 		}
 	} else {
 		status["services"].(map[string]string)["database"] = "not_configured"
+	}
+
+	// Add circuit breaker status
+	cbStatus := services.GetGlobalRegistry().Status()
+	status["circuit_breakers"] = cbStatus
+
+	// Check if any breakers are open (degraded state)
+	for _, cb := range cbStatus {
+		if cb.State == "open" {
+			status["status"] = "degraded"
+			break
+		}
 	}
 
 	h.jsonResponse(w, status)

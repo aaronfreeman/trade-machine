@@ -32,7 +32,7 @@ func (r *Repository) Close() {
 	r.pool.Close()
 }
 
-// Pool returns the underlying connection pool for advanced queries
-func (r *Repository) Pool() *pgxpool.Pool {
-	return r.pool
+// Health checks if the database connection is healthy
+func (r *Repository) Health(ctx context.Context) error {
+	return r.pool.Ping(ctx)
 }

@@ -3,10 +3,9 @@ package main
 import (
 	"context"
 	"fmt"
-	"os"
-	"strconv"
 
 	"trade-machine/agents"
+	"trade-machine/config"
 	"trade-machine/models"
 	"trade-machine/repository"
 	"trade-machine/services"
@@ -17,6 +16,7 @@ import (
 // App struct
 type App struct {
 	ctx              context.Context
+	cfg              *config.Config
 	repo             *repository.Repository
 	portfolioManager *agents.PortfolioManager
 	alpacaService    *services.AlpacaService
@@ -24,19 +24,13 @@ type App struct {
 }
 
 // NewApp creates a new App application struct
-func NewApp(repo *repository.Repository, manager *agents.PortfolioManager, alpaca *services.AlpacaService) *App {
-	concurrencyLimit := 3
-	if val := os.Getenv("ANALYSIS_CONCURRENCY_LIMIT"); val != "" {
-		if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
-			concurrencyLimit = parsed
-		}
-	}
-
+func NewApp(cfg *config.Config, repo *repository.Repository, manager *agents.PortfolioManager, alpaca *services.AlpacaService) *App {
 	return &App{
+		cfg:              cfg,
 		repo:             repo,
 		portfolioManager: manager,
 		alpacaService:    alpaca,
-		analysisSem:      make(chan struct{}, concurrencyLimit),
+		analysisSem:      make(chan struct{}, cfg.Agent.ConcurrencyLimit),
 	}
 }
 
@@ -50,11 +44,6 @@ func (a *App) shutdown(ctx context.Context) {
 	if a.repo != nil {
 		a.repo.Close()
 	}
-}
-
-// Greet returns a greeting for the given name
-func (a *App) Greet(name string) string {
-	return fmt.Sprintf("Hello %s! Welcome to Trade Machine.", name)
 }
 
 // AnalyzeStock runs all agents to analyze a stock and generate a recommendation

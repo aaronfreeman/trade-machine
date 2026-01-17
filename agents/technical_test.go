@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"trade-machine/config"
 	"trade-machine/models"
 
 	marketdata "github.com/alpacahq/alpaca-trade-api-go/v3/marketdata"
@@ -210,7 +211,7 @@ func TestTechnicalAnalyst_Type(t *testing.T) {
 }
 
 func TestNewTechnicalAnalyst(t *testing.T) {
-	analyst := NewTechnicalAnalyst(nil, nil)
+	analyst := NewTechnicalAnalyst(nil, nil, config.NewTestConfig())
 	if analyst == nil {
 		t.Error("NewTechnicalAnalyst should not return nil")
 	}
@@ -243,7 +244,7 @@ func TestTechnicalAnalyst_Analyze_Success(t *testing.T) {
 		bars: bars,
 	}
 
-	analyst := NewTechnicalAnalyst(mockBedrock, mockAlpaca)
+	analyst := NewTechnicalAnalyst(mockBedrock, mockAlpaca, config.NewTestConfig())
 	ctx := context.Background()
 
 	analysis, err := analyst.Analyze(ctx, "AAPL")
@@ -290,7 +291,7 @@ func TestTechnicalAnalyst_Analyze_InsufficientData(t *testing.T) {
 		bars: bars,
 	}
 
-	analyst := NewTechnicalAnalyst(mockBedrock, mockAlpaca)
+	analyst := NewTechnicalAnalyst(mockBedrock, mockAlpaca, config.NewTestConfig())
 	ctx := context.Background()
 
 	analysis, err := analyst.Analyze(ctx, "NEWSTOCK")
@@ -318,7 +319,7 @@ func TestTechnicalAnalyst_Analyze_AlpacaError(t *testing.T) {
 		err: errors.New("Alpaca API unavailable"),
 	}
 
-	analyst := NewTechnicalAnalyst(mockBedrock, mockAlpaca)
+	analyst := NewTechnicalAnalyst(mockBedrock, mockAlpaca, config.NewTestConfig())
 	ctx := context.Background()
 
 	_, err := analyst.Analyze(ctx, "AAPL")
@@ -344,7 +345,7 @@ func TestTechnicalAnalyst_Analyze_BedrockError(t *testing.T) {
 		bars: bars,
 	}
 
-	analyst := NewTechnicalAnalyst(mockBedrock, mockAlpaca)
+	analyst := NewTechnicalAnalyst(mockBedrock, mockAlpaca, config.NewTestConfig())
 	ctx := context.Background()
 
 	_, err := analyst.Analyze(ctx, "AAPL")
@@ -370,7 +371,7 @@ func TestTechnicalAnalyst_Analyze_InvalidJSON(t *testing.T) {
 		bars: bars,
 	}
 
-	analyst := NewTechnicalAnalyst(mockBedrock, mockAlpaca)
+	analyst := NewTechnicalAnalyst(mockBedrock, mockAlpaca, config.NewTestConfig())
 	ctx := context.Background()
 
 	analysis, err := analyst.Analyze(ctx, "AAPL")

@@ -858,12 +858,13 @@ func TestNewRepository_InvalidConnection(t *testing.T) {
 	}
 }
 
-func TestRepository_Pool(t *testing.T) {
+func TestRepository_Health(t *testing.T) {
 	repo := getTestDB(t)
 	defer repo.Close()
 
-	pool := repo.Pool()
-	if pool == nil {
-		t.Error("Pool() should not return nil")
+	ctx := context.Background()
+	err := repo.Health(ctx)
+	if err != nil {
+		t.Errorf("Health() should return nil for valid connection: %v", err)
 	}
 }

@@ -4,32 +4,29 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"os"
 	"regexp"
 	"strconv"
 	"strings"
 
+	"trade-machine/config"
 	"trade-machine/models"
+	"trade-machine/templates"
 )
 
 // APIHandler handles HTTP API requests
 type APIHandler struct {
 	app *App
+	cfg *config.Config
 }
 
 // NewAPIHandler creates a new APIHandler
-func NewAPIHandler(app *App) *APIHandler {
-	return &APIHandler{app: app}
+func NewAPIHandler(app *App, cfg *config.Config) *APIHandler {
+	return &APIHandler{app: app, cfg: cfg}
 }
 
 // ServeHTTP routes requests to appropriate handlers
 func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	corsOrigins := os.Getenv("CORS_ALLOWED_ORIGINS")
-	if corsOrigins == "" {
-		corsOrigins = "*"
-	}
-
-	w.Header().Set("Access-Control-Allow-Origin", corsOrigins)
+	w.Header().Set("Access-Control-Allow-Origin", h.cfg.HTTP.CORSAllowedOrigins)
 	w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS")
 	w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 
@@ -41,13 +38,13 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	path := r.URL.Path
 
 	switch {
+	// Root path - serve templ index
+	case path == "/" || path == "/index.html":
+		h.handleIndex(w, r)
+
 	// Health check endpoint
 	case path == "/api/health":
 		h.handleHealth(w, r)
-
-	// Legacy greet endpoint
-	case path == "/api/greet":
-		h.handleGreet(w, r)
 
 	// Portfolio endpoints
 	case path == "/api/portfolio":
@@ -82,6 +79,17 @@ func (h *APIHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
+// handleIndex serves the main application page using templ
+func (h *APIHandler) handleIndex(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	templates.Index().Render(r.Context(), w)
+}
+
 // handleHealth returns the health status of the application
 func (h *APIHandler) handleHealth(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -98,7 +106,7 @@ func (h *APIHandler) handleHealth(w http.ResponseWriter, r *http.Request) {
 
 	if h.app.repo != nil {
 		ctx := r.Context()
-		if err := h.app.repo.Pool().Ping(ctx); err == nil {
+		if err := h.app.repo.Health(ctx); err == nil {
 			status["services"].(map[string]string)["database"] = "connected"
 		} else {
 			status["services"].(map[string]string)["database"] = "disconnected"
@@ -109,23 +117,6 @@ func (h *APIHandler) handleHealth(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.jsonResponse(w, status)
-}
-
-// handleGreet handles the legacy greet endpoint
-func (h *APIHandler) handleGreet(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	name := r.FormValue("name")
-	if name == "" {
-		name = "World"
-	}
-
-	greeting := h.app.Greet(name)
-	w.Header().Set("Content-Type", "text/html")
-	fmt.Fprintf(w, `<span class="text-success">%s</span>`, greeting)
 }
 
 // handleGetPortfolio returns portfolio summary

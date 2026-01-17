@@ -2,11 +2,11 @@ package main
 
 import (
 	"context"
-	"embed"
-	"log"
 	"os"
 
 	"trade-machine/agents"
+	"trade-machine/config"
+	"trade-machine/observability"
 	"trade-machine/repository"
 	"trade-machine/services"
 
@@ -16,28 +16,36 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 )
 
-//go:embed all:frontend/dist
-var assets embed.FS
-
 func main() {
+	// Initialize logger (production mode based on environment)
+	production := os.Getenv("ENVIRONMENT") == "production"
+	observability.InitLogger(production)
+
 	// Load environment variables
 	if err := godotenv.Load(); err != nil {
-		log.Println("No .env file found, using environment variables")
+		observability.Info("no .env file found, using environment variables")
+	}
+
+	// Load configuration
+	cfg, err := config.Load()
+	if err != nil {
+		observability.Fatal("failed to load configuration", "error", err)
 	}
 
 	ctx := context.Background()
 
 	// Initialize database
-	connString := os.Getenv("DATABASE_URL")
-	if connString == "" {
-		log.Fatal("DATABASE_URL environment variable is required")
-	}
-
-	repo, err := repository.NewRepository(ctx, connString)
-	if err != nil {
-		log.Printf("Warning: Failed to initialize database: %v", err)
-		log.Println("Running without database connection. Some features will be unavailable.")
-		repo = nil
+	var repo *repository.Repository
+	if cfg.HasDatabase() {
+		repo, err = repository.NewRepository(ctx, cfg.Database.URL)
+		if err != nil {
+			observability.Warn("failed to initialize database",
+				"error", err,
+				"note", "running without database connection, some features will be unavailable")
+			repo = nil
+		}
+	} else {
+		observability.Fatal("DATABASE_URL environment variable is required")
 	}
 
 	// Initialize services (with nil checks for graceful degradation)
@@ -47,50 +55,40 @@ func main() {
 	var newsAPIService *services.NewsAPIService
 
 	// AWS Bedrock Service
-	awsRegion := os.Getenv("AWS_REGION")
-	bedrockModelID := os.Getenv("BEDROCK_MODEL_ID")
-	if awsRegion != "" && bedrockModelID != "" {
-		bedrockService, err = services.NewBedrockService(ctx, awsRegion, bedrockModelID)
+	if cfg.HasBedrock() {
+		bedrockService, err = services.NewBedrockService(ctx, cfg)
 		if err != nil {
-			log.Printf("Warning: Failed to initialize Bedrock service: %v", err)
+			observability.Warn("failed to initialize Bedrock service", "error", err)
 		}
 	} else {
-		log.Println("Warning: AWS_REGION or BEDROCK_MODEL_ID not set, AI agents disabled")
+		observability.Warn("AWS_REGION or BEDROCK_MODEL_ID not set, AI agents disabled")
 	}
 
 	// Alpaca Service
-	alpacaKey := os.Getenv("ALPACA_API_KEY")
-	alpacaSecret := os.Getenv("ALPACA_API_SECRET")
-	alpacaBaseURL := os.Getenv("ALPACA_BASE_URL")
-	if alpacaBaseURL == "" {
-		alpacaBaseURL = "https://paper-api.alpaca.markets"
-	}
-	if alpacaKey != "" && alpacaSecret != "" {
-		alpacaService = services.NewAlpacaService(alpacaKey, alpacaSecret, alpacaBaseURL)
+	if cfg.HasAlpaca() {
+		alpacaService = services.NewAlpacaService(cfg.Alpaca.APIKey, cfg.Alpaca.APISecret, cfg.Alpaca.BaseURL)
 	} else {
-		log.Println("Warning: Alpaca API credentials not set, trading disabled")
+		observability.Warn("Alpaca API credentials not set, trading disabled")
 	}
 
 	// Alpha Vantage Service
-	alphaVantageKey := os.Getenv("ALPHA_VANTAGE_API_KEY")
-	if alphaVantageKey != "" {
-		alphaVantageService = services.NewAlphaVantageService(alphaVantageKey)
+	if cfg.HasAlphaVantage() {
+		alphaVantageService = services.NewAlphaVantageService(cfg.AlphaVantage.APIKey)
 	} else {
-		log.Println("Warning: Alpha Vantage API key not set, fundamental analysis disabled")
+		observability.Warn("Alpha Vantage API key not set, fundamental analysis disabled")
 	}
 
 	// NewsAPI Service
-	newsAPIKey := os.Getenv("NEWS_API_KEY")
-	if newsAPIKey != "" {
-		newsAPIService = services.NewNewsAPIService(newsAPIKey)
+	if cfg.HasNewsAPI() {
+		newsAPIService = services.NewNewsAPIService(cfg.NewsAPI.APIKey)
 	} else {
-		log.Println("Warning: NewsAPI key not set, news sentiment analysis disabled")
+		observability.Warn("NewsAPI key not set, news sentiment analysis disabled")
 	}
 
 	// Initialize Portfolio Manager and register agents
 	var portfolioManager *agents.PortfolioManager
 	if repo != nil {
-		portfolioManager = agents.NewPortfolioManager(repo)
+		portfolioManager = agents.NewPortfolioManager(repo, cfg)
 
 		// Register agents if their dependencies are available
 		if bedrockService != nil && alphaVantageService != nil {
@@ -100,13 +98,13 @@ func main() {
 			portfolioManager.RegisterAgent(agents.NewNewsAnalyst(bedrockService, newsAPIService))
 		}
 		if bedrockService != nil && alpacaService != nil {
-			portfolioManager.RegisterAgent(agents.NewTechnicalAnalyst(bedrockService, alpacaService))
+			portfolioManager.RegisterAgent(agents.NewTechnicalAnalyst(bedrockService, alpacaService, cfg))
 		}
 	}
 
 	// Initialize app
-	app := NewApp(repo, portfolioManager, alpacaService)
-	apiHandler := NewAPIHandler(app)
+	app := NewApp(cfg, repo, portfolioManager, alpacaService)
+	apiHandler := NewAPIHandler(app, cfg)
 
 	// Run Wails application
 	err = wails.Run(&options.App{
@@ -114,18 +112,14 @@ func main() {
 		Width:  1280,
 		Height: 800,
 		AssetServer: &assetserver.Options{
-			Assets:  assets,
 			Handler: apiHandler,
 		},
 		BackgroundColour: options.NewRGB(27, 38, 54),
 		OnStartup:        app.startup,
 		OnShutdown:       app.shutdown,
-		Bind: []interface{}{
-			app,
-		},
 	})
 
 	if err != nil {
-		log.Fatal(err)
+		observability.Fatal("wails application error", "error", err)
 	}
 }

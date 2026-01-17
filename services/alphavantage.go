@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"strconv"
 	"time"
 
 	"trade-machine/models"
+	"trade-machine/observability"
 
 	"github.com/shopspring/decimal"
 )
@@ -86,19 +86,19 @@ func (s *AlphaVantageService) GetFundamentals(ctx context.Context, symbol string
 		if overview.PERatio != "" && overview.PERatio != "None" {
 			peRatio, err = strconv.ParseFloat(overview.PERatio, 64)
 			if err != nil {
-				log.Printf("Warning: failed to parse P/E ratio '%s': %v", overview.PERatio, err)
+				observability.Warn("failed to parse P/E ratio", "value", overview.PERatio, "error", err)
 			}
 		}
 		if overview.DividendYield != "" && overview.DividendYield != "None" {
 			dividendYield, err = strconv.ParseFloat(overview.DividendYield, 64)
 			if err != nil {
-				log.Printf("Warning: failed to parse dividend yield '%s': %v", overview.DividendYield, err)
+				observability.Warn("failed to parse dividend yield", "value", overview.DividendYield, "error", err)
 			}
 		}
 		if overview.Beta != "" && overview.Beta != "None" {
 			beta, err = strconv.ParseFloat(overview.Beta, 64)
 			if err != nil {
-				log.Printf("Warning: failed to parse beta '%s': %v", overview.Beta, err)
+				observability.Warn("failed to parse beta", "value", overview.Beta, "error", err)
 			}
 		}
 
@@ -162,7 +162,7 @@ func (s *AlphaVantageService) GetNews(ctx context.Context, symbol string) ([]mod
 	for _, item := range newsResp.Feed {
 		publishedAt, err := time.Parse("20060102T150405", item.TimePublished)
 		if err != nil {
-			log.Printf("Warning: failed to parse timestamp '%s': %v, using current time", item.TimePublished, err)
+			observability.Warn("failed to parse timestamp, using current time", "value", item.TimePublished, "error", err)
 			publishedAt = time.Now()
 		}
 
@@ -223,7 +223,7 @@ func (s *AlphaVantageService) GetQuote(ctx context.Context, symbol string) (*mod
 	if quoteResp.GlobalQuote.Volume != "" {
 		volume, err = strconv.ParseInt(quoteResp.GlobalQuote.Volume, 10, 64)
 		if err != nil {
-			log.Printf("Warning: failed to parse volume '%s': %v", quoteResp.GlobalQuote.Volume, err)
+			observability.Warn("failed to parse volume", "value", quoteResp.GlobalQuote.Volume, "error", err)
 		}
 	}
 

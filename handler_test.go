@@ -5,12 +5,81 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
+	"trade-machine/config"
 	"trade-machine/repository"
 )
+
+// testConfig returns a test configuration
+func testConfig() *config.Config {
+	return config.NewTestConfig()
+}
+
+// testApp creates an App with test config for testing
+func testApp(repo *repository.Repository) *App {
+	return NewApp(testConfig(), repo, nil, nil)
+}
+
+// testHandler creates an APIHandler with test config for testing
+func testHandler(app *App) *APIHandler {
+	return NewAPIHandler(app, testConfig())
+}
+
+func TestAPIHandler_Index(t *testing.T) {
+	t.Run("serves templ index at root", func(t *testing.T) {
+		app := testApp(nil)
+		handler := testHandler(app)
+
+		req := httptest.NewRequest(http.MethodGet, "/", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status 200, got %d", w.Code)
+		}
+
+		contentType := w.Header().Get("Content-Type")
+		if !strings.Contains(contentType, "text/html") {
+			t.Errorf("expected Content-Type text/html, got %s", contentType)
+		}
+
+		body := w.Body.String()
+		if !strings.Contains(body, "Trade Machine") {
+			t.Error("expected body to contain 'Trade Machine'")
+		}
+	})
+
+	t.Run("serves templ index at /index.html", func(t *testing.T) {
+		app := testApp(nil)
+		handler := testHandler(app)
+
+		req := httptest.NewRequest(http.MethodGet, "/index.html", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status 200, got %d", w.Code)
+		}
+	})
+
+	t.Run("index method not allowed", func(t *testing.T) {
+		app := testApp(nil)
+		handler := testHandler(app)
+
+		req := httptest.NewRequest(http.MethodPost, "/", nil)
+		w := httptest.NewRecorder()
+
+		handler.ServeHTTP(w, req)
+
+		if w.Code != http.StatusMethodNotAllowed {
+			t.Errorf("expected status 405, got %d", w.Code)
+		}
+	})
+}
 
 func TestAPIHandler_Health(t *testing.T) {
 	tests := []struct {
@@ -27,8 +96,8 @@ func TestAPIHandler_Health(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			app := NewApp(tt.repo, nil, nil)
-			handler := NewAPIHandler(app)
+			app := testApp(tt.repo)
+			handler := testHandler(app)
 
 			req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
 			w := httptest.NewRecorder()
@@ -53,8 +122,8 @@ func TestAPIHandler_Health(t *testing.T) {
 
 func TestAPIHandler_AnalyzeStock(t *testing.T) {
 	t.Run("missing symbol", func(t *testing.T) {
-		app := NewApp(nil, nil, nil)
-		handler := NewAPIHandler(app)
+		app := testApp(nil)
+		handler := testHandler(app)
 
 		req := httptest.NewRequest(http.MethodPost, "/api/analyze", strings.NewReader("{}"))
 		req.Header.Set("Content-Type", "application/json")
@@ -68,8 +137,8 @@ func TestAPIHandler_AnalyzeStock(t *testing.T) {
 	})
 
 	t.Run("portfolio manager not initialized", func(t *testing.T) {
-		app := NewApp(nil, nil, nil)
-		handler := NewAPIHandler(app)
+		app := testApp(nil)
+		handler := testHandler(app)
 
 		req := httptest.NewRequest(http.MethodPost, "/api/analyze", strings.NewReader(`{"symbol":"AAPL"}`))
 		req.Header.Set("Content-Type", "application/json")
@@ -85,8 +154,8 @@ func TestAPIHandler_AnalyzeStock(t *testing.T) {
 
 func TestAPIHandler_GetRecommendations(t *testing.T) {
 	t.Run("database not initialized", func(t *testing.T) {
-		app := NewApp(nil, nil, nil)
-		handler := NewAPIHandler(app)
+		app := testApp(nil)
+		handler := testHandler(app)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/recommendations", nil)
 		w := httptest.NewRecorder()
@@ -99,8 +168,8 @@ func TestAPIHandler_GetRecommendations(t *testing.T) {
 	})
 
 	t.Run("with limit parameter", func(t *testing.T) {
-		app := NewApp(nil, nil, nil)
-		handler := NewAPIHandler(app)
+		app := testApp(nil)
+		handler := testHandler(app)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/recommendations?limit=10", nil)
 		w := httptest.NewRecorder()
@@ -123,9 +192,9 @@ func TestAPIHandler_ApproveRecommendation(t *testing.T) {
 		}
 		defer repo.Close()
 
-		app := NewApp(repo, nil, nil)
+		app := testApp(repo)
 		app.startup(ctx)
-		handler := NewAPIHandler(app)
+		handler := testHandler(app)
 
 		req := httptest.NewRequest(http.MethodPost, "/api/recommendations/invalid-uuid/approve", nil)
 		w := httptest.NewRecorder()
@@ -140,8 +209,8 @@ func TestAPIHandler_ApproveRecommendation(t *testing.T) {
 
 func TestAPIHandler_GetPositions(t *testing.T) {
 	t.Run("database not initialized", func(t *testing.T) {
-		app := NewApp(nil, nil, nil)
-		handler := NewAPIHandler(app)
+		app := testApp(nil)
+		handler := testHandler(app)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/positions", nil)
 		w := httptest.NewRecorder()
@@ -156,8 +225,8 @@ func TestAPIHandler_GetPositions(t *testing.T) {
 
 func TestAPIHandler_GetTrades(t *testing.T) {
 	t.Run("database not initialized", func(t *testing.T) {
-		app := NewApp(nil, nil, nil)
-		handler := NewAPIHandler(app)
+		app := testApp(nil)
+		handler := testHandler(app)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/trades", nil)
 		w := httptest.NewRecorder()
@@ -170,8 +239,8 @@ func TestAPIHandler_GetTrades(t *testing.T) {
 	})
 
 	t.Run("with limit parameter", func(t *testing.T) {
-		app := NewApp(nil, nil, nil)
-		handler := NewAPIHandler(app)
+		app := testApp(nil)
+		handler := testHandler(app)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/trades?limit=25", nil)
 		w := httptest.NewRecorder()
@@ -186,8 +255,8 @@ func TestAPIHandler_GetTrades(t *testing.T) {
 
 func TestAPIHandler_GetAgentRuns(t *testing.T) {
 	t.Run("database not initialized", func(t *testing.T) {
-		app := NewApp(nil, nil, nil)
-		handler := NewAPIHandler(app)
+		app := testApp(nil)
+		handler := testHandler(app)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/agents/runs", nil)
 		w := httptest.NewRecorder()
@@ -201,8 +270,8 @@ func TestAPIHandler_GetAgentRuns(t *testing.T) {
 }
 
 func TestAPIHandler_NotFound(t *testing.T) {
-	app := NewApp(nil, nil, nil)
-	handler := NewAPIHandler(app)
+	app := testApp(nil)
+	handler := testHandler(app)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/nonexistent", nil)
 	w := httptest.NewRecorder()
@@ -215,8 +284,8 @@ func TestAPIHandler_NotFound(t *testing.T) {
 }
 
 func TestAPIHandler_MethodNotAllowed(t *testing.T) {
-	app := NewApp(nil, nil, nil)
-	handler := NewAPIHandler(app)
+	app := testApp(nil)
+	handler := testHandler(app)
 
 	req := httptest.NewRequest(http.MethodDelete, "/api/health", nil)
 	w := httptest.NewRecorder()
@@ -244,8 +313,8 @@ func TestAPIHandler_ParseLimitParam(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			app := NewApp(nil, nil, nil)
-			handler := NewAPIHandler(app)
+			app := testApp(nil)
+			handler := testHandler(app)
 
 			url := "/api/test"
 			if tt.queryParam != "" {
@@ -264,7 +333,7 @@ func TestAPIHandler_ParseLimitParam(t *testing.T) {
 
 func TestApp_AnalyzeStock_RateLimiting(t *testing.T) {
 	ctx := context.Background()
-	app := NewApp(nil, nil, nil)
+	app := testApp(nil)
 	app.startup(ctx)
 
 	requestCount := 5
@@ -294,7 +363,7 @@ func TestApp_AnalyzeStock_RateLimiting(t *testing.T) {
 
 func TestApp_GetRecommendations(t *testing.T) {
 	t.Run("repository not initialized", func(t *testing.T) {
-		app := NewApp(nil, nil, nil)
+		app := testApp(nil)
 		_, err := app.GetRecommendations(10)
 		if err == nil {
 			t.Error("expected error when repository is nil")
@@ -304,7 +373,7 @@ func TestApp_GetRecommendations(t *testing.T) {
 
 func TestApp_GetPositions(t *testing.T) {
 	t.Run("repository not initialized", func(t *testing.T) {
-		app := NewApp(nil, nil, nil)
+		app := testApp(nil)
 		_, err := app.GetPositions()
 		if err == nil {
 			t.Error("expected error when repository is nil")
@@ -314,7 +383,7 @@ func TestApp_GetPositions(t *testing.T) {
 
 func TestApp_GetTrades(t *testing.T) {
 	t.Run("repository not initialized", func(t *testing.T) {
-		app := NewApp(nil, nil, nil)
+		app := testApp(nil)
 		_, err := app.GetTrades(10)
 		if err == nil {
 			t.Error("expected error when repository is nil")
@@ -356,7 +425,7 @@ func TestParseUUID(t *testing.T) {
 }
 
 func TestRecommendationActions(t *testing.T) {
-	app := NewApp(nil, nil, nil)
+	app := testApp(nil)
 
 	t.Run("approve with nil repository", func(t *testing.T) {
 		err := app.ApproveRecommendation("550e8400-e29b-41d4-a716-446655440000")
@@ -381,8 +450,8 @@ func TestRecommendationActions(t *testing.T) {
 }
 
 func TestAPIHandler_ValidateSymbol(t *testing.T) {
-	app := NewApp(nil, nil, nil)
-	handler := NewAPIHandler(app)
+	app := testApp(nil)
+	handler := testHandler(app)
 
 	tests := []struct {
 		name      string
@@ -411,8 +480,8 @@ func TestAPIHandler_ValidateSymbol(t *testing.T) {
 }
 
 func TestAPIHandler_AnalyzeStock_InvalidSymbol(t *testing.T) {
-	app := NewApp(nil, nil, nil)
-	handler := NewAPIHandler(app)
+	app := testApp(nil)
+	handler := testHandler(app)
 
 	tests := []struct {
 		name   string
@@ -439,18 +508,10 @@ func TestAPIHandler_AnalyzeStock_InvalidSymbol(t *testing.T) {
 	}
 }
 
-func TestApp_Greet(t *testing.T) {
-	app := NewApp(nil, nil, nil)
-	result := app.Greet("World")
-	expected := "Hello World! Welcome to Trade Machine."
-	if result != expected {
-		t.Errorf("Greet() = %v, want %v", result, expected)
-	}
-}
 
 func TestApp_GetPendingRecommendations(t *testing.T) {
 	t.Run("repository not initialized", func(t *testing.T) {
-		app := NewApp(nil, nil, nil)
+		app := testApp(nil)
 		_, err := app.GetPendingRecommendations()
 		if err == nil {
 			t.Error("expected error when repository is nil")
@@ -460,7 +521,7 @@ func TestApp_GetPendingRecommendations(t *testing.T) {
 
 func TestApp_GetAgentRuns(t *testing.T) {
 	t.Run("repository not initialized", func(t *testing.T) {
-		app := NewApp(nil, nil, nil)
+		app := testApp(nil)
 		_, err := app.GetAgentRuns(10)
 		if err == nil {
 			t.Error("expected error when repository is nil")
@@ -470,8 +531,8 @@ func TestApp_GetAgentRuns(t *testing.T) {
 
 func TestAPIHandler_GetPendingRecommendations(t *testing.T) {
 	t.Run("database not initialized", func(t *testing.T) {
-		app := NewApp(nil, nil, nil)
-		handler := NewAPIHandler(app)
+		app := testApp(nil)
+		handler := testHandler(app)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/recommendations/pending", nil)
 		w := httptest.NewRecorder()
@@ -486,8 +547,8 @@ func TestAPIHandler_GetPendingRecommendations(t *testing.T) {
 
 func TestAPIHandler_RejectRecommendation(t *testing.T) {
 	t.Run("database not initialized", func(t *testing.T) {
-		app := NewApp(nil, nil, nil)
-		handler := NewAPIHandler(app)
+		app := testApp(nil)
+		handler := testHandler(app)
 
 		req := httptest.NewRequest(http.MethodPost, "/api/recommendations/550e8400-e29b-41d4-a716-446655440000/reject", nil)
 		w := httptest.NewRecorder()
@@ -500,8 +561,8 @@ func TestAPIHandler_RejectRecommendation(t *testing.T) {
 	})
 
 	t.Run("invalid UUID", func(t *testing.T) {
-		app := NewApp(nil, nil, nil)
-		handler := NewAPIHandler(app)
+		app := testApp(nil)
+		handler := testHandler(app)
 
 		req := httptest.NewRequest(http.MethodPost, "/api/recommendations/invalid-uuid/reject", nil)
 		w := httptest.NewRecorder()
@@ -514,31 +575,11 @@ func TestAPIHandler_RejectRecommendation(t *testing.T) {
 	})
 }
 
-func TestAPIHandler_Greet(t *testing.T) {
-	app := NewApp(nil, nil, nil)
-	handler := NewAPIHandler(app)
-
-	req := httptest.NewRequest(http.MethodPost, "/api/greet?name=World", nil)
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-
-	if w.Code != http.StatusOK {
-		t.Errorf("expected status 200, got %d", w.Code)
-	}
-
-	body := w.Body.String()
-	expectedBody := `<span class="text-success">Hello World! Welcome to Trade Machine.</span>`
-	if body != expectedBody {
-		t.Errorf("expected body %v, got %v", expectedBody, body)
-	}
-}
 
 func TestAPIHandler_GetPortfolio(t *testing.T) {
 	t.Run("database not initialized", func(t *testing.T) {
-		app := NewApp(nil, nil, nil)
-		handler := NewAPIHandler(app)
+		app := testApp(nil)
+		handler := testHandler(app)
 
 		req := httptest.NewRequest(http.MethodGet, "/api/portfolio", nil)
 		w := httptest.NewRecorder()
@@ -561,18 +602,18 @@ func TestApp_Shutdown(t *testing.T) {
 			t.Skip("database not available")
 		}
 
-		app := NewApp(repo, nil, nil)
+		app := testApp(repo)
 		app.shutdown(ctx) // Should close repository without error
 	})
 
 	t.Run("without repository", func(t *testing.T) {
-		app := NewApp(nil, nil, nil)
+		app := testApp(nil)
 		app.shutdown(ctx) // Should not panic
 	})
 }
 
 func TestApp_RejectRecommendation_InvalidUUID(t *testing.T) {
-	app := NewApp(nil, nil, nil)
+	app := testApp(nil)
 	err := app.RejectRecommendation("not-a-uuid")
 	if err == nil {
 		t.Error("expected error with invalid UUID")
@@ -589,9 +630,9 @@ func TestIntegration_WithDatabase(t *testing.T) {
 	}
 	defer repo.Close()
 
-	app := NewApp(repo, nil, nil)
+	app := testApp(repo)
 	app.startup(ctx)
-	handler := NewAPIHandler(app)
+	handler := testHandler(app)
 
 	t.Run("get recommendations with database", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/api/recommendations?limit=5", nil)
@@ -708,8 +749,8 @@ func TestIntegration_WithDatabase(t *testing.T) {
 }
 
 func TestAPIHandler_MethodsNotAllowed(t *testing.T) {
-	app := NewApp(nil, nil, nil)
-	handler := NewAPIHandler(app)
+	app := testApp(nil)
+	handler := testHandler(app)
 
 	tests := []struct {
 		name   string
@@ -717,7 +758,6 @@ func TestAPIHandler_MethodsNotAllowed(t *testing.T) {
 		path   string
 	}{
 		{"health with POST", http.MethodPost, "/api/health"},
-		{"greet with GET", http.MethodGet, "/api/greet"},
 		{"portfolio with POST", http.MethodPost, "/api/portfolio"},
 		{"positions with POST", http.MethodPost, "/api/positions"},
 		{"analyze with GET", http.MethodGet, "/api/analyze"},
@@ -738,8 +778,8 @@ func TestAPIHandler_MethodsNotAllowed(t *testing.T) {
 }
 
 func TestAPIHandler_CORSHeaders(t *testing.T) {
-	app := NewApp(nil, nil, nil)
-	handler := NewAPIHandler(app)
+	app := testApp(nil)
+	handler := testHandler(app)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
 	w := httptest.NewRecorder()
@@ -752,8 +792,8 @@ func TestAPIHandler_CORSHeaders(t *testing.T) {
 }
 
 func TestAPIHandler_OptionsRequest(t *testing.T) {
-	app := NewApp(nil, nil, nil)
-	handler := NewAPIHandler(app)
+	app := testApp(nil)
+	handler := testHandler(app)
 
 	req := httptest.NewRequest(http.MethodOptions, "/api/health", nil)
 	w := httptest.NewRecorder()
@@ -766,17 +806,9 @@ func TestAPIHandler_OptionsRequest(t *testing.T) {
 }
 
 func TestApp_NewApp_WithConcurrencyLimit(t *testing.T) {
-	originalEnv := os.Getenv("ANALYSIS_CONCURRENCY_LIMIT")
-	defer func() {
-		if originalEnv == "" {
-			os.Unsetenv("ANALYSIS_CONCURRENCY_LIMIT")
-		} else {
-			os.Setenv("ANALYSIS_CONCURRENCY_LIMIT", originalEnv)
-		}
-	}()
-
-	os.Setenv("ANALYSIS_CONCURRENCY_LIMIT", "5")
-	app := NewApp(nil, nil, nil)
+	cfg := config.NewTestConfig()
+	cfg.Agent.ConcurrencyLimit = 5
+	app := NewApp(cfg, nil, nil, nil)
 
 	if cap(app.analysisSem) != 5 {
 		t.Errorf("expected concurrency limit 5, got %d", cap(app.analysisSem))
@@ -792,9 +824,9 @@ func TestAPIHandler_GetRecommendations_WithStatus(t *testing.T) {
 	}
 	defer repo.Close()
 
-	app := NewApp(repo, nil, nil)
+	app := testApp(repo)
 	app.startup(ctx)
-	handler := NewAPIHandler(app)
+	handler := testHandler(app)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/recommendations?status=pending&limit=10", nil)
 	w := httptest.NewRecorder()
@@ -807,8 +839,8 @@ func TestAPIHandler_GetRecommendations_WithStatus(t *testing.T) {
 }
 
 func TestAPIHandler_AnalyzeStock_InvalidJSON(t *testing.T) {
-	app := NewApp(nil, nil, nil)
-	handler := NewAPIHandler(app)
+	app := testApp(nil)
+	handler := testHandler(app)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/analyze", strings.NewReader("invalid json"))
 	req.Header.Set("Content-Type", "application/json")
@@ -830,9 +862,9 @@ func TestAPIHandler_GetAgentRuns_WithType(t *testing.T) {
 	}
 	defer repo.Close()
 
-	app := NewApp(repo, nil, nil)
+	app := testApp(repo)
 	app.startup(ctx)
-	handler := NewAPIHandler(app)
+	handler := testHandler(app)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/agents/runs?type=fundamental&limit=10", nil)
 	w := httptest.NewRecorder()
@@ -853,7 +885,7 @@ func TestApp_RejectRecommendation_WithDatabase(t *testing.T) {
 	}
 	defer repo.Close()
 
-	app := NewApp(repo, nil, nil)
+	app := testApp(repo)
 	app.startup(ctx)
 
 	err = app.RejectRecommendation("550e8400-e29b-41d4-a716-446655440000")

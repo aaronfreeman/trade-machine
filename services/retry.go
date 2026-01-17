@@ -3,8 +3,9 @@ package services
 import (
 	"context"
 	"fmt"
-	"log"
 	"time"
+
+	"trade-machine/observability"
 )
 
 type RetryConfig struct {
@@ -44,7 +45,10 @@ func WithRetry(ctx context.Context, config RetryConfig, fn func() error) error {
 
 		lastErr = err
 		if attempt < config.MaxRetries {
-			log.Printf("Retry attempt %d/%d failed: %v", attempt+1, config.MaxRetries, err)
+			observability.Warn("retry attempt failed",
+				"attempt", attempt+1,
+				"max_retries", config.MaxRetries,
+				"error", err)
 		}
 	}
 

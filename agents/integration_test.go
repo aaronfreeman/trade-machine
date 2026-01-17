@@ -5,6 +5,7 @@ import (
 	"testing"
 	"time"
 
+	"trade-machine/config"
 	"trade-machine/models"
 	"trade-machine/repository"
 )
@@ -40,7 +41,7 @@ func TestPortfolioManager_AnalyzeSymbol_Integration(t *testing.T) {
 	}
 	defer repo.Close()
 
-	manager := NewPortfolioManager(repo)
+	manager := NewPortfolioManager(repo, config.NewTestConfig())
 
 	fundamental := &mockAgent{
 		name:      "Mock Fundamental",
@@ -159,7 +160,7 @@ func TestPortfolioManager_AnalyzeSymbol_PartialFailure(t *testing.T) {
 	}
 	defer repo.Close()
 
-	manager := NewPortfolioManager(repo)
+	manager := NewPortfolioManager(repo, config.NewTestConfig())
 
 	fundamental := &mockAgent{
 		name:      "Mock Fundamental",
@@ -203,7 +204,7 @@ func TestPortfolioManager_AnalyzeSymbol_AllFail(t *testing.T) {
 	}
 	defer repo.Close()
 
-	manager := NewPortfolioManager(repo)
+	manager := NewPortfolioManager(repo, config.NewTestConfig())
 
 	failingAgent := &mockAgent{
 		name:      "Failing Agent",

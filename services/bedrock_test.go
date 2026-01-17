@@ -3,8 +3,9 @@ package services
 import (
 	"context"
 	"encoding/json"
-	"os"
 	"testing"
+
+	"trade-machine/config"
 )
 
 func TestClaudeRequest_Serialization(t *testing.T) {
@@ -188,7 +189,10 @@ func TestNewBedrockService_Integration(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			service, err := NewBedrockService(ctx, tt.region, tt.modelID)
+			cfg := config.NewTestConfig()
+			cfg.AWS.Region = tt.region
+			cfg.AWS.BedrockModelID = tt.modelID
+			service, err := NewBedrockService(ctx, cfg)
 			if err != nil {
 				// This is expected if AWS credentials are not configured
 				t.Logf("NewBedrockService returned error (expected if no AWS creds): %v", err)
@@ -213,7 +217,10 @@ func TestNewBedrockService_InvalidRegion(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	service, err := NewBedrockService(ctx, "invalid-region-99", "test-model")
+	cfg := config.NewTestConfig()
+	cfg.AWS.Region = "invalid-region-99"
+	cfg.AWS.BedrockModelID = "test-model"
+	service, err := NewBedrockService(ctx, cfg)
 
 	// May succeed or fail depending on AWS SDK configuration
 	// Just verify it doesn't crash
@@ -224,64 +231,41 @@ func TestNewBedrockService_InvalidRegion(t *testing.T) {
 	}
 }
 
-func TestInvokeWithPrompt_EnvVariables(t *testing.T) {
-	// Test that environment variables are respected
-	originalMaxTokens := os.Getenv("BEDROCK_MAX_TOKENS")
-	originalVersion := os.Getenv("BEDROCK_ANTHROPIC_VERSION")
-
-	defer func() {
-		if originalMaxTokens != "" {
-			os.Setenv("BEDROCK_MAX_TOKENS", originalMaxTokens)
-		} else {
-			os.Unsetenv("BEDROCK_MAX_TOKENS")
-		}
-		if originalVersion != "" {
-			os.Setenv("BEDROCK_ANTHROPIC_VERSION", originalVersion)
-		} else {
-			os.Unsetenv("BEDROCK_ANTHROPIC_VERSION")
-		}
-	}()
-
+func TestBedrockService_ConfigValues(t *testing.T) {
+	// Test that config values are properly stored in the service
 	tests := []struct {
 		name              string
-		maxTokensEnv      string
-		versionEnv        string
+		maxTokens         int
+		version           string
 		expectedMaxTokens int
 		expectedVersion   string
 	}{
-		{"Default values", "", "", 4096, "bedrock-2023-05-31"},
-		{"Custom max tokens", "2048", "", 2048, "bedrock-2023-05-31"},
-		{"Custom version", "", "bedrock-2024-01-01", 4096, "bedrock-2024-01-01"},
-		{"Both custom", "8192", "bedrock-2024-01-01", 8192, "bedrock-2024-01-01"},
-		{"Invalid max tokens", "invalid", "", 4096, "bedrock-2023-05-31"},
-		{"Negative max tokens", "-100", "", 4096, "bedrock-2023-05-31"},
-		{"Zero max tokens", "0", "", 4096, "bedrock-2023-05-31"},
+		{"Default values", 4096, "bedrock-2023-05-31", 4096, "bedrock-2023-05-31"},
+		{"Custom max tokens", 2048, "bedrock-2023-05-31", 2048, "bedrock-2023-05-31"},
+		{"Custom version", 4096, "bedrock-2024-01-01", 4096, "bedrock-2024-01-01"},
+		{"Both custom", 8192, "bedrock-2024-01-01", 8192, "bedrock-2024-01-01"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if tt.maxTokensEnv != "" {
-				os.Setenv("BEDROCK_MAX_TOKENS", tt.maxTokensEnv)
-			} else {
-				os.Unsetenv("BEDROCK_MAX_TOKENS")
-			}
-			if tt.versionEnv != "" {
-				os.Setenv("BEDROCK_ANTHROPIC_VERSION", tt.versionEnv)
-			} else {
-				os.Unsetenv("BEDROCK_ANTHROPIC_VERSION")
-			}
-
-			// We can't easily test the actual invocation without mocking,
-			// but we can verify the function doesn't panic and handles env vars
-			// by checking that NewBedrockService works
 			ctx := context.Background()
-			service, err := NewBedrockService(ctx, "us-east-1", "test-model")
+			cfg := config.NewTestConfig()
+			cfg.AWS.BedrockMaxTokens = tt.maxTokens
+			cfg.AWS.AnthropicVersion = tt.version
+			service, err := NewBedrockService(ctx, cfg)
 			if err != nil {
 				t.Logf("Expected error with no AWS credentials: %v", err)
 				return
 			}
 			if service == nil {
 				t.Error("service should not be nil")
+				return
+			}
+			if service.maxTokens != tt.expectedMaxTokens {
+				t.Errorf("maxTokens = %d, want %d", service.maxTokens, tt.expectedMaxTokens)
+			}
+			if service.anthropicVersion != tt.expectedVersion {
+				t.Errorf("anthropicVersion = %s, want %s", service.anthropicVersion, tt.expectedVersion)
 			}
 		})
 	}

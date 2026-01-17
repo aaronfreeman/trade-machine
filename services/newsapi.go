@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"time"
 
 	"trade-machine/models"
+	"trade-machine/observability"
 )
 
 // NewsAPIService handles communication with NewsAPI.org
@@ -89,7 +89,7 @@ func (s *NewsAPIService) GetNews(ctx context.Context, query string, limit int) (
 		for _, item := range newsResp.Articles {
 			publishedAt, err := time.Parse(time.RFC3339, item.PublishedAt)
 			if err != nil {
-				log.Printf("Warning: failed to parse timestamp '%s': %v, using current time", item.PublishedAt, err)
+				observability.Warn("failed to parse timestamp, using current time", "value", item.PublishedAt, "error", err)
 				publishedAt = time.Now()
 			}
 
@@ -154,7 +154,7 @@ func (s *NewsAPIService) GetHeadlines(ctx context.Context, query string, limit i
 	for _, item := range newsResp.Articles {
 		publishedAt, err := time.Parse(time.RFC3339, item.PublishedAt)
 		if err != nil {
-			log.Printf("Warning: failed to parse timestamp '%s': %v, using current time", item.PublishedAt, err)
+			observability.Warn("failed to parse timestamp, using current time", "value", item.PublishedAt, "error", err)
 			publishedAt = time.Now()
 		}
 

@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"strconv"
+
+	appconfig "trade-machine/config"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -14,8 +14,10 @@ import (
 
 // BedrockService handles communication with AWS Bedrock for Claude models
 type BedrockService struct {
-	client *bedrockruntime.Client
-	model  string
+	client           *bedrockruntime.Client
+	model            string
+	maxTokens        int
+	anthropicVersion string
 }
 
 // ClaudeRequest represents the request format for Claude models via Bedrock
@@ -49,35 +51,25 @@ type ClaudeResponse struct {
 }
 
 // NewBedrockService creates a new BedrockService instance
-func NewBedrockService(ctx context.Context, region, modelID string) (*BedrockService, error) {
-	cfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(region))
+func NewBedrockService(ctx context.Context, cfg *appconfig.Config) (*BedrockService, error) {
+	awsCfg, err := config.LoadDefaultConfig(ctx, config.WithRegion(cfg.AWS.Region))
 	if err != nil {
 		return nil, fmt.Errorf("unable to load AWS SDK config: %w", err)
 	}
 
 	return &BedrockService{
-		client: bedrockruntime.NewFromConfig(cfg),
-		model:  modelID,
+		client:           bedrockruntime.NewFromConfig(awsCfg),
+		model:            cfg.AWS.BedrockModelID,
+		maxTokens:        cfg.AWS.BedrockMaxTokens,
+		anthropicVersion: cfg.AWS.AnthropicVersion,
 	}, nil
 }
 
 // InvokeWithPrompt sends a prompt to Claude and returns the response text
 func (s *BedrockService) InvokeWithPrompt(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
-	maxTokens := 4096
-	if val := os.Getenv("BEDROCK_MAX_TOKENS"); val != "" {
-		if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
-			maxTokens = parsed
-		}
-	}
-
-	anthropicVersion := "bedrock-2023-05-31"
-	if val := os.Getenv("BEDROCK_ANTHROPIC_VERSION"); val != "" {
-		anthropicVersion = val
-	}
-
 	request := ClaudeRequest{
-		AnthropicVersion: anthropicVersion,
-		MaxTokens:        maxTokens,
+		AnthropicVersion: s.anthropicVersion,
+		MaxTokens:        s.maxTokens,
 		System:           systemPrompt,
 		Messages: []ClaudeMessage{
 			{Role: "user", Content: userPrompt},
@@ -128,8 +120,8 @@ func (s *BedrockService) InvokeStructured(ctx context.Context, systemPrompt, use
 // Chat enables multi-turn conversation with Claude
 func (s *BedrockService) Chat(ctx context.Context, systemPrompt string, messages []ClaudeMessage) (string, error) {
 	request := ClaudeRequest{
-		AnthropicVersion: "bedrock-2023-05-31",
-		MaxTokens:        4096,
+		AnthropicVersion: s.anthropicVersion,
+		MaxTokens:        s.maxTokens,
 		System:           systemPrompt,
 		Messages:         messages,
 	}

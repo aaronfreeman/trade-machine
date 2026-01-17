@@ -4,11 +4,17 @@ import (
 	"context"
 	"testing"
 
+	"trade-machine/config"
 	"trade-machine/models"
 )
 
+// testConfig returns a test configuration
+func testConfig() *config.Config {
+	return config.NewTestConfig()
+}
+
 func TestPortfolioManager_RegisterAgent(t *testing.T) {
-	manager := NewPortfolioManager(nil)
+	manager := NewPortfolioManager(nil, testConfig())
 
 	if len(manager.GetAgents()) != 0 {
 		t.Errorf("Initial agents count = %v, want 0", len(manager.GetAgents()))
@@ -32,21 +38,21 @@ func TestPortfolioManager_RegisterAgent(t *testing.T) {
 }
 
 func TestPortfolioManager_Name(t *testing.T) {
-	manager := NewPortfolioManager(nil)
+	manager := NewPortfolioManager(nil, testConfig())
 	if manager.Name() != "Portfolio Manager" {
 		t.Errorf("Name() = %v, want 'Portfolio Manager'", manager.Name())
 	}
 }
 
 func TestPortfolioManager_Type(t *testing.T) {
-	manager := NewPortfolioManager(nil)
+	manager := NewPortfolioManager(nil, testConfig())
 	if manager.Type() != models.AgentTypeManager {
 		t.Errorf("Type() = %v, want AgentTypeManager", manager.Type())
 	}
 }
 
 func TestPortfolioManager_SynthesizeRecommendation(t *testing.T) {
-	manager := NewPortfolioManager(nil)
+	manager := NewPortfolioManager(nil, testConfig())
 
 	// Test with multiple analyses
 	analyses := []*Analysis{
@@ -102,7 +108,7 @@ func TestPortfolioManager_SynthesizeRecommendation(t *testing.T) {
 }
 
 func TestPortfolioManager_SynthesizeRecommendation_Hold(t *testing.T) {
-	manager := NewPortfolioManager(nil)
+	manager := NewPortfolioManager(nil, testConfig())
 
 	// Test with mixed scores that should result in hold
 	analyses := []*Analysis{
@@ -131,7 +137,7 @@ func TestPortfolioManager_SynthesizeRecommendation_Hold(t *testing.T) {
 }
 
 func TestPortfolioManager_SynthesizeRecommendation_Sell(t *testing.T) {
-	manager := NewPortfolioManager(nil)
+	manager := NewPortfolioManager(nil, testConfig())
 
 	// Test with negative scores that should result in sell
 	analyses := []*Analysis{
@@ -167,7 +173,7 @@ func TestPortfolioManager_SynthesizeRecommendation_Sell(t *testing.T) {
 }
 
 func TestPortfolioManager_GetAgents(t *testing.T) {
-	manager := NewPortfolioManager(nil)
+	manager := NewPortfolioManager(nil, testConfig())
 
 	agents := manager.GetAgents()
 	if agents == nil {

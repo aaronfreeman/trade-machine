@@ -3,13 +3,12 @@ package agents
 import (
 	"context"
 	"fmt"
-	"log"
-	"os"
-	"strconv"
 	"sync"
 	"time"
 
+	"trade-machine/config"
 	"trade-machine/models"
+	"trade-machine/observability"
 	"trade-machine/repository"
 
 	"github.com/google/uuid"
@@ -20,13 +19,15 @@ import (
 type PortfolioManager struct {
 	agents []Agent
 	repo   *repository.Repository
+	cfg    *config.Config
 }
 
 // NewPortfolioManager creates a new PortfolioManager
-func NewPortfolioManager(repo *repository.Repository) *PortfolioManager {
+func NewPortfolioManager(repo *repository.Repository, cfg *config.Config) *PortfolioManager {
 	return &PortfolioManager{
 		agents: make([]Agent, 0),
 		repo:   repo,
+		cfg:    cfg,
 	}
 }
 
@@ -47,14 +48,7 @@ func (m *PortfolioManager) AnalyzeSymbol(ctx context.Context, symbol string) (*m
 		go func(idx int, ag Agent) {
 			defer wg.Done()
 
-			timeoutSeconds := 30
-			if val := os.Getenv("AGENT_TIMEOUT_SECONDS"); val != "" {
-				if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
-					timeoutSeconds = parsed
-				}
-			}
-
-			agentCtx, cancel := context.WithTimeout(ctx, time.Duration(timeoutSeconds)*time.Second)
+			agentCtx, cancel := context.WithTimeout(ctx, time.Duration(m.cfg.Agent.TimeoutSeconds)*time.Second)
 			defer cancel()
 
 			run := models.NewAgentRun(ag.Type(), symbol)
@@ -85,7 +79,10 @@ func (m *PortfolioManager) AnalyzeSymbol(ctx context.Context, symbol string) (*m
 		if analysis != nil {
 			validAnalyses = append(validAnalyses, analysis)
 		} else if errors[i] != nil {
-			log.Printf("Agent %s failed for symbol %s: %v", m.agents[i].Name(), symbol, errors[i])
+			observability.Warn("agent analysis failed",
+				"agent", m.agents[i].Name(),
+				"symbol", symbol,
+				"error", errors[i])
 		}
 	}
 
@@ -112,25 +109,9 @@ func (m *PortfolioManager) synthesizeRecommendation(symbol string, analyses []*A
 	var reasonings []string
 
 	weights := map[models.AgentType]float64{
-		models.AgentTypeFundamental: 0.4,
-		models.AgentTypeNews:        0.3,
-		models.AgentTypeTechnical:   0.3,
-	}
-
-	if val := os.Getenv("AGENT_WEIGHT_FUNDAMENTAL"); val != "" {
-		if parsed, err := strconv.ParseFloat(val, 64); err == nil && parsed >= 0 && parsed <= 1 {
-			weights[models.AgentTypeFundamental] = parsed
-		}
-	}
-	if val := os.Getenv("AGENT_WEIGHT_NEWS"); val != "" {
-		if parsed, err := strconv.ParseFloat(val, 64); err == nil && parsed >= 0 && parsed <= 1 {
-			weights[models.AgentTypeNews] = parsed
-		}
-	}
-	if val := os.Getenv("AGENT_WEIGHT_TECHNICAL"); val != "" {
-		if parsed, err := strconv.ParseFloat(val, 64); err == nil && parsed >= 0 && parsed <= 1 {
-			weights[models.AgentTypeTechnical] = parsed
-		}
+		models.AgentTypeFundamental: m.cfg.Agent.WeightFundamental,
+		models.AgentTypeNews:        m.cfg.Agent.WeightNews,
+		models.AgentTypeTechnical:   m.cfg.Agent.WeightTechnical,
 	}
 
 	for _, analysis := range analyses {

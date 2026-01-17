@@ -4,10 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os"
-	"strconv"
 	"time"
 
+	"trade-machine/config"
 	"trade-machine/models"
 
 	marketdata "github.com/alpacahq/alpaca-trade-api-go/v3/marketdata"
@@ -48,29 +47,24 @@ type TechnicalAnalystResponse struct {
 
 // TechnicalAnalyst analyzes price action and technical indicators
 type TechnicalAnalyst struct {
-	bedrock BedrockServiceInterface
-	alpaca  AlpacaServiceInterface
+	bedrock      BedrockServiceInterface
+	alpaca       AlpacaServiceInterface
+	lookbackDays int
 }
 
 // NewTechnicalAnalyst creates a new TechnicalAnalyst
-func NewTechnicalAnalyst(bedrock BedrockServiceInterface, alpaca AlpacaServiceInterface) *TechnicalAnalyst {
+func NewTechnicalAnalyst(bedrock BedrockServiceInterface, alpaca AlpacaServiceInterface, cfg *config.Config) *TechnicalAnalyst {
 	return &TechnicalAnalyst{
-		bedrock: bedrock,
-		alpaca:  alpaca,
+		bedrock:      bedrock,
+		alpaca:       alpaca,
+		lookbackDays: cfg.Agent.TechnicalLookbackDays,
 	}
 }
 
 // Analyze performs technical analysis on a stock
 func (a *TechnicalAnalyst) Analyze(ctx context.Context, symbol string) (*Analysis, error) {
-	lookbackDays := 100
-	if val := os.Getenv("TECHNICAL_ANALYSIS_LOOKBACK_DAYS"); val != "" {
-		if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
-			lookbackDays = parsed
-		}
-	}
-
 	end := time.Now()
-	start := end.AddDate(0, 0, -lookbackDays)
+	start := end.AddDate(0, 0, -a.lookbackDays)
 
 	bars, err := a.alpaca.GetBars(ctx, symbol, start, end, marketdata.OneDay)
 	if err != nil {

@@ -8,11 +8,358 @@ templ Layout(title string) {
 			<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 			<title>{ title }</title>
 			<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet"/>
+			<link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet"/>
 			<script src="https://unpkg.com/htmx.org@2.0.4"></script>
+			<style>
+				/* Professional Financial Dark Theme */
+				:root {
+					--bg-primary: #0d1117;
+					--bg-secondary: #161b22;
+					--bg-tertiary: #21262d;
+					--border-default: #30363d;
+					--border-muted: #21262d;
+					--text-primary: #e6edf3;
+					--text-secondary: #8b949e;
+					--text-muted: #6e7681;
+					--color-buy: #3fb950;
+					--color-sell: #f85149;
+					--color-hold: #d29922;
+					--accent-primary: #58a6ff;
+					--accent-purple: #8957e5;
+				}
+
+				body {
+					background-color: var(--bg-primary) !important;
+					color: var(--text-primary) !important;
+					font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans', Helvetica, Arial, sans-serif;
+				}
+
+				/* Sidebar */
+				.sidebar {
+					background-color: var(--bg-secondary) !important;
+					border-right: 1px solid var(--border-default);
+				}
+
+				.sidebar .nav-link {
+					color: var(--text-secondary);
+					border-radius: 6px;
+					margin: 2px 8px;
+					padding: 10px 12px;
+					transition: all 0.15s ease;
+				}
+
+				.sidebar .nav-link:hover {
+					background-color: var(--bg-tertiary);
+					color: var(--text-primary);
+				}
+
+				.sidebar .nav-link.active {
+					background-color: rgba(88, 166, 255, 0.15);
+					color: var(--accent-primary);
+				}
+
+				.sidebar .nav-link i {
+					width: 20px;
+					text-align: center;
+				}
+
+				/* Cards */
+				.card {
+					background-color: var(--bg-secondary) !important;
+					border: 1px solid var(--border-default) !important;
+					border-radius: 8px;
+				}
+
+				.card-header {
+					background-color: var(--bg-tertiary) !important;
+					border-bottom: 1px solid var(--border-default) !important;
+				}
+
+				/* Tables */
+				.table {
+					--bs-table-bg: transparent;
+					--bs-table-color: var(--text-primary);
+					--bs-table-border-color: var(--border-muted);
+				}
+
+				.table thead th {
+					background-color: var(--bg-tertiary);
+					color: var(--text-secondary);
+					font-weight: 600;
+					font-size: 0.75rem;
+					text-transform: uppercase;
+					letter-spacing: 0.5px;
+					border-bottom: 1px solid var(--border-default);
+				}
+
+				.table tbody tr:hover {
+					background-color: var(--bg-tertiary);
+				}
+
+				/* Action Badges */
+				.badge-buy {
+					background-color: rgba(63, 185, 80, 0.2);
+					color: var(--color-buy);
+					border: 1px solid var(--color-buy);
+				}
+
+				.badge-sell {
+					background-color: rgba(248, 81, 73, 0.2);
+					color: var(--color-sell);
+					border: 1px solid var(--color-sell);
+				}
+
+				.badge-hold {
+					background-color: rgba(210, 153, 34, 0.2);
+					color: var(--color-hold);
+					border: 1px solid var(--color-hold);
+				}
+
+				/* Status Badges */
+				.badge-pending {
+					background-color: rgba(210, 153, 34, 0.15);
+					color: #d29922;
+				}
+
+				.badge-approved {
+					background-color: rgba(63, 185, 80, 0.15);
+					color: #3fb950;
+				}
+
+				.badge-rejected {
+					background-color: rgba(248, 81, 73, 0.15);
+					color: #f85149;
+				}
+
+				.badge-executed {
+					background-color: rgba(88, 166, 255, 0.15);
+					color: #58a6ff;
+				}
+
+				/* Form Controls */
+				.form-control, .form-select {
+					background-color: var(--bg-tertiary) !important;
+					border-color: var(--border-default) !important;
+					color: var(--text-primary) !important;
+				}
+
+				.form-control:focus, .form-select:focus {
+					background-color: var(--bg-tertiary) !important;
+					border-color: var(--accent-primary) !important;
+					box-shadow: 0 0 0 3px rgba(88, 166, 255, 0.25) !important;
+				}
+
+				.form-control::placeholder {
+					color: var(--text-muted) !important;
+				}
+
+				.form-label {
+					color: var(--text-secondary);
+				}
+
+				/* Buttons */
+				.btn-primary {
+					background-color: #238636;
+					border-color: #238636;
+				}
+
+				.btn-primary:hover {
+					background-color: #2ea043;
+					border-color: #2ea043;
+				}
+
+				.btn-secondary {
+					background-color: var(--bg-tertiary);
+					border-color: var(--border-default);
+					color: var(--text-secondary);
+				}
+
+				.btn-secondary:hover {
+					background-color: var(--border-default);
+					border-color: var(--border-default);
+					color: var(--text-primary);
+				}
+
+				/* Section Visibility */
+				.section {
+					display: none;
+				}
+
+				.section.active {
+					display: block;
+				}
+
+				/* Empty State */
+				.empty-state {
+					text-align: center;
+					padding: 60px 20px;
+					color: var(--text-muted);
+				}
+
+				.empty-state i {
+					font-size: 3rem;
+					margin-bottom: 16px;
+					opacity: 0.5;
+				}
+
+				/* Error State */
+				.error-state {
+					text-align: center;
+					padding: 40px 20px;
+				}
+
+				/* Loading States */
+				.is-loading {
+					position: relative;
+					pointer-events: none;
+					opacity: 0.6;
+				}
+
+				/* Score Colors */
+				.score-bullish { color: var(--color-buy); }
+				.score-bearish { color: var(--color-sell); }
+				.score-neutral { color: var(--color-hold); }
+
+				/* P/L Colors */
+				.pl-positive { color: var(--color-buy); }
+				.pl-negative { color: var(--color-sell); }
+
+				/* Agent Type Colors */
+				.agent-fundamental { color: var(--accent-primary); }
+				.agent-technical { color: var(--accent-purple); }
+				.agent-news { color: var(--color-hold); }
+
+				/* Page Title */
+				h2 {
+					color: var(--text-primary);
+				}
+
+				h2 i {
+					color: var(--text-secondary);
+					margin-right: 8px;
+				}
+
+				/* Text utilities */
+				.text-muted {
+					color: var(--text-muted) !important;
+				}
+
+				/* Toast Container */
+				.toast-container {
+					z-index: 1100;
+				}
+			</style>
 		</head>
-		<body class="bg-dark text-light min-vh-100 d-flex align-items-center">
+		<body class="min-vh-100">
 			{ children... }
 			<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+			<script>
+				// Section Navigation
+				function showSection(sectionId) {
+					// Hide all sections
+					document.querySelectorAll('.section').forEach(function(section) {
+						section.classList.remove('active');
+					});
+
+					// Show target section
+					var targetSection = document.getElementById(sectionId);
+					if (targetSection) {
+						targetSection.classList.add('active');
+					}
+
+					// Update nav link active states
+					document.querySelectorAll('.sidebar .nav-link').forEach(function(link) {
+						link.classList.remove('active');
+					});
+
+					var activeLink = document.querySelector('[data-section="' + sectionId + '"]');
+					if (activeLink) {
+						activeLink.classList.add('active');
+					}
+
+					// Store in localStorage for persistence
+					localStorage.setItem('activeSection', sectionId);
+				}
+
+				// Initialize on page load
+				document.addEventListener('DOMContentLoaded', function() {
+					// Restore last active section or default to 'analyze'
+					var savedSection = localStorage.getItem('activeSection') || 'analyze';
+					showSection(savedSection);
+
+					// Initialize HTMX event handlers
+					initHtmxHandlers();
+				});
+
+				// HTMX Event Handlers
+				function initHtmxHandlers() {
+					// Show loading state before request
+					document.body.addEventListener('htmx:beforeRequest', function(event) {
+						var target = event.detail.target;
+						if (target && !target.classList.contains('htmx-indicator')) {
+							target.classList.add('is-loading');
+						}
+					});
+
+					// Remove loading state after request
+					document.body.addEventListener('htmx:afterRequest', function(event) {
+						var target = event.detail.target;
+						if (target) {
+							target.classList.remove('is-loading');
+						}
+					});
+
+					// Handle errors
+					document.body.addEventListener('htmx:responseError', function(event) {
+						var target = event.detail.target;
+						var xhr = event.detail.xhr;
+
+						var errorMessage = 'An error occurred';
+						try {
+							var response = JSON.parse(xhr.responseText);
+							errorMessage = response.error || errorMessage;
+						} catch (e) {
+							errorMessage = xhr.statusText || errorMessage;
+						}
+
+						// Insert error template
+						if (target) {
+							target.innerHTML = '<div class="error-state">' +
+								'<i class="bi bi-exclamation-triangle-fill text-danger" style="font-size: 3rem;"></i>' +
+								'<p class="mt-3 text-danger">' + errorMessage + '</p>' +
+								'<button class="btn btn-outline-primary mt-2" onclick="location.reload()">' +
+								'<i class="bi bi-arrow-clockwise me-2"></i>Retry</button>' +
+								'</div>';
+						}
+					});
+				}
+
+				// Toast notification system
+				function showToast(message, type) {
+					type = type || 'info';
+					var toast = document.createElement('div');
+					toast.className = 'toast align-items-center text-bg-' + type + ' border-0 show';
+					toast.setAttribute('role', 'alert');
+					toast.innerHTML = '<div class="d-flex">' +
+						'<div class="toast-body">' + message + '</div>' +
+						'<button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>' +
+						'</div>';
+
+					var container = document.getElementById('toast-container');
+					if (!container) {
+						container = document.createElement('div');
+						container.id = 'toast-container';
+						container.className = 'toast-container position-fixed bottom-0 end-0 p-3';
+						document.body.appendChild(container);
+					}
+
+					container.appendChild(toast);
+
+					setTimeout(function() {
+						toast.remove();
+					}, 5000);
+				}
+			</script>
 		</body>
 	</html>
 }

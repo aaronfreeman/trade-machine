@@ -5,34 +5,40 @@ templ Index() {
 		<div class="container-fluid">
 			<div class="row">
 				<!-- Sidebar Navigation -->
-				<div class="col-md-3 col-lg-2 bg-secondary vh-100 position-sticky top-0 pt-3">
-					<ul class="nav nav-pills flex-column">
+				<div class="col-md-3 col-lg-2 sidebar vh-100 position-sticky top-0">
+					<div class="p-3 border-bottom" style="border-color: var(--border-default) !important;">
+						<h5 class="mb-0 d-flex align-items-center">
+							<i class="bi bi-graph-up-arrow me-2" style="color: var(--color-buy);"></i>
+							<span>Trade Machine</span>
+						</h5>
+					</div>
+					<ul class="nav nav-pills flex-column mt-2">
 						<li class="nav-item">
-							<a class="nav-link active" href="#" onclick="showSection('analyze'); return false;">
+							<a class="nav-link" href="#" data-section="analyze" onclick="showSection('analyze'); return false;">
 								<i class="bi bi-search me-2"></i>
 								Analyze Stock
 							</a>
 						</li>
 						<li class="nav-item">
-							<a class="nav-link" href="#" onclick="showSection('recommendations'); return false;">
+							<a class="nav-link" href="#" data-section="recommendations" onclick="showSection('recommendations'); return false;">
 								<i class="bi bi-lightbulb me-2"></i>
 								Recommendations
 							</a>
 						</li>
 						<li class="nav-item">
-							<a class="nav-link" href="#" onclick="showSection('portfolio'); return false;">
+							<a class="nav-link" href="#" data-section="portfolio" onclick="showSection('portfolio'); return false;">
 								<i class="bi bi-briefcase me-2"></i>
 								Portfolio
 							</a>
 						</li>
 						<li class="nav-item">
-							<a class="nav-link" href="#" onclick="showSection('trades'); return false;">
+							<a class="nav-link" href="#" data-section="trades" onclick="showSection('trades'); return false;">
 								<i class="bi bi-arrow-left-right me-2"></i>
 								Trades
 							</a>
 						</li>
 						<li class="nav-item">
-							<a class="nav-link" href="#" onclick="showSection('agents'); return false;">
+							<a class="nav-link" href="#" data-section="agents" onclick="showSection('agents'); return false;">
 								<i class="bi bi-robot me-2"></i>
 								Agent Runs
 							</a>

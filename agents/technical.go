@@ -50,6 +50,7 @@ type TechnicalAnalyst struct {
 	bedrock      BedrockServiceInterface
 	alpaca       AlpacaServiceInterface
 	lookbackDays int
+	healthCache  *HealthCache
 }
 
 // NewTechnicalAnalyst creates a new TechnicalAnalyst
@@ -58,6 +59,17 @@ func NewTechnicalAnalyst(bedrock BedrockServiceInterface, alpaca AlpacaServiceIn
 		bedrock:      bedrock,
 		alpaca:       alpaca,
 		lookbackDays: cfg.Agent.TechnicalLookbackDays,
+		healthCache:  NewHealthCache(DefaultHealthCacheTTL),
+	}
+}
+
+// NewTechnicalAnalystWithCacheTTL creates a new TechnicalAnalyst with a custom health cache TTL
+func NewTechnicalAnalystWithCacheTTL(bedrock BedrockServiceInterface, alpaca AlpacaServiceInterface, cfg *config.Config, cacheTTL time.Duration) *TechnicalAnalyst {
+	return &TechnicalAnalyst{
+		bedrock:      bedrock,
+		alpaca:       alpaca,
+		lookbackDays: cfg.Agent.TechnicalLookbackDays,
+		healthCache:  NewHealthCache(cacheTTL),
 	}
 }
 
@@ -292,13 +304,28 @@ func (a *TechnicalAnalyst) Type() models.AgentType {
 	return models.AgentTypeTechnical
 }
 
-// IsAvailable checks if the agent's dependencies are healthy
+// IsAvailable checks if the agent's dependencies are healthy.
+// Results are cached to reduce API calls during frequent availability checks.
 func (a *TechnicalAnalyst) IsAvailable(ctx context.Context) bool {
-	// Test Alpaca connectivity with a simple bars request
+	// Check cache first
+	if available, valid := a.healthCache.Get(); valid {
+		return available
+	}
+
+	// Cache miss or expired - make live API call
 	end := time.Now()
 	start := end.AddDate(0, 0, -1)
 	_, err := a.alpaca.GetBars(ctx, "AAPL", start, end, marketdata.OneDay)
-	return err == nil
+	available := err == nil
+
+	// Update cache
+	a.healthCache.Set(available)
+	return available
+}
+
+// InvalidateHealthCache clears the health cache, forcing the next check to make a live call.
+func (a *TechnicalAnalyst) InvalidateHealthCache() {
+	a.healthCache.Invalidate()
 }
 
 // GetMetadata returns information about this agent's capabilities

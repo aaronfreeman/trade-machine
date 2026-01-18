@@ -42,15 +42,26 @@ type NewsAnalystResponse struct {
 
 // NewsAnalyst analyzes news sentiment
 type NewsAnalyst struct {
-	bedrock BedrockServiceInterface
-	newsAPI NewsAPIServiceInterface
+	bedrock     BedrockServiceInterface
+	newsAPI     NewsAPIServiceInterface
+	healthCache *HealthCache
 }
 
 // NewNewsAnalyst creates a new NewsAnalyst
 func NewNewsAnalyst(bedrock BedrockServiceInterface, newsAPI NewsAPIServiceInterface) *NewsAnalyst {
 	return &NewsAnalyst{
-		bedrock: bedrock,
-		newsAPI: newsAPI,
+		bedrock:     bedrock,
+		newsAPI:     newsAPI,
+		healthCache: NewHealthCache(DefaultHealthCacheTTL),
+	}
+}
+
+// NewNewsAnalystWithCacheTTL creates a new NewsAnalyst with a custom health cache TTL
+func NewNewsAnalystWithCacheTTL(bedrock BedrockServiceInterface, newsAPI NewsAPIServiceInterface, cacheTTL time.Duration) *NewsAnalyst {
+	return &NewsAnalyst{
+		bedrock:     bedrock,
+		newsAPI:     newsAPI,
+		healthCache: NewHealthCache(cacheTTL),
 	}
 }
 
@@ -137,11 +148,26 @@ func (a *NewsAnalyst) Type() models.AgentType {
 	return models.AgentTypeNews
 }
 
-// IsAvailable checks if the agent's dependencies are healthy
+// IsAvailable checks if the agent's dependencies are healthy.
+// Results are cached to reduce API calls during frequent availability checks.
 func (a *NewsAnalyst) IsAvailable(ctx context.Context) bool {
-	// Test NewsAPI connectivity with a simple request
+	// Check cache first
+	if available, valid := a.healthCache.Get(); valid {
+		return available
+	}
+
+	// Cache miss or expired - make live API call
 	_, err := a.newsAPI.GetNews(ctx, "AAPL", 1)
-	return err == nil
+	available := err == nil
+
+	// Update cache
+	a.healthCache.Set(available)
+	return available
+}
+
+// InvalidateHealthCache clears the health cache, forcing the next check to make a live call.
+func (a *NewsAnalyst) InvalidateHealthCache() {
+	a.healthCache.Invalidate()
 }
 
 // GetMetadata returns information about this agent's capabilities

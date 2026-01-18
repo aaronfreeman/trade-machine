@@ -40,6 +40,7 @@ type FundamentalAnalystResponse struct {
 type FundamentalAnalyst struct {
 	bedrock      BedrockServiceInterface
 	alphaVantage AlphaVantageServiceInterface
+	healthCache  *HealthCache
 }
 
 // NewFundamentalAnalyst creates a new FundamentalAnalyst
@@ -47,6 +48,16 @@ func NewFundamentalAnalyst(bedrock BedrockServiceInterface, alphaVantage AlphaVa
 	return &FundamentalAnalyst{
 		bedrock:      bedrock,
 		alphaVantage: alphaVantage,
+		healthCache:  NewHealthCache(DefaultHealthCacheTTL),
+	}
+}
+
+// NewFundamentalAnalystWithCacheTTL creates a new FundamentalAnalyst with a custom health cache TTL
+func NewFundamentalAnalystWithCacheTTL(bedrock BedrockServiceInterface, alphaVantage AlphaVantageServiceInterface, cacheTTL time.Duration) *FundamentalAnalyst {
+	return &FundamentalAnalyst{
+		bedrock:      bedrock,
+		alphaVantage: alphaVantage,
+		healthCache:  NewHealthCache(cacheTTL),
 	}
 }
 
@@ -128,12 +139,27 @@ func (a *FundamentalAnalyst) Type() models.AgentType {
 	return models.AgentTypeFundamental
 }
 
-// IsAvailable checks if the agent's dependencies are healthy
+// IsAvailable checks if the agent's dependencies are healthy.
+// Results are cached to reduce API calls during frequent availability checks.
 func (a *FundamentalAnalyst) IsAvailable(ctx context.Context) bool {
-	// Test Alpha Vantage connectivity with a simple request
+	// Check cache first
+	if available, valid := a.healthCache.Get(); valid {
+		return available
+	}
+
+	// Cache miss or expired - make live API call
 	// Using a well-known symbol for the health check
 	_, err := a.alphaVantage.GetFundamentals(ctx, "AAPL")
-	return err == nil
+	available := err == nil
+
+	// Update cache
+	a.healthCache.Set(available)
+	return available
+}
+
+// InvalidateHealthCache clears the health cache, forcing the next check to make a live call.
+func (a *FundamentalAnalyst) InvalidateHealthCache() {
+	a.healthCache.Invalidate()
 }
 
 // GetMetadata returns information about this agent's capabilities

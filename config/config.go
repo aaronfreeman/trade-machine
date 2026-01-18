@@ -67,6 +67,10 @@ type AgentConfig struct {
 	WeightFundamental        float64
 	WeightNews               float64
 	WeightTechnical          float64
+	Strategy                 string  // default, conservative, aggressive, or custom
+	BuyThreshold             float64 // for custom strategy
+	SellThreshold            float64 // for custom strategy
+	MinConfidence            float64 // for custom/conservative strategy
 }
 
 // PositionSizingConfig holds position sizing configuration
@@ -113,6 +117,10 @@ func Load() (*Config, error) {
 			WeightFundamental:        getEnvFloat("AGENT_WEIGHT_FUNDAMENTAL", 0.4),
 			WeightNews:               getEnvFloat("AGENT_WEIGHT_NEWS", 0.3),
 			WeightTechnical:          getEnvFloat("AGENT_WEIGHT_TECHNICAL", 0.3),
+			Strategy:                 getEnvString("AGENT_STRATEGY", "default"),
+			BuyThreshold:             getEnvFloatUnbounded("AGENT_BUY_THRESHOLD", 25),
+			SellThreshold:            getEnvFloatUnbounded("AGENT_SELL_THRESHOLD", -25),
+			MinConfidence:            getEnvFloatUnbounded("AGENT_MIN_CONFIDENCE", 0),
 		},
 		PositionSizing: PositionSizingConfig{
 			MaxPositionPercent:   getEnvFloatRange("POSITION_MAX_PERCENT", 0.10, 0.01, 1.0),
@@ -213,7 +221,7 @@ func getEnvInt(key string, defaultValue int) int {
 	return defaultValue
 }
 
-// getEnvFloat gets an environment variable as a float with a default value
+// getEnvFloat gets an environment variable as a float with a default value (bounded 0-1)
 func getEnvFloat(key string, defaultValue float64) float64 {
 	if val := os.Getenv(key); val != "" {
 		if parsed, err := strconv.ParseFloat(val, 64); err == nil && parsed >= 0 && parsed <= 1 {
@@ -227,6 +235,16 @@ func getEnvFloat(key string, defaultValue float64) float64 {
 func getEnvFloatRange(key string, defaultValue, minVal, maxVal float64) float64 {
 	if val := os.Getenv(key); val != "" {
 		if parsed, err := strconv.ParseFloat(val, 64); err == nil && parsed >= minVal && parsed <= maxVal {
+			return parsed
+		}
+	}
+	return defaultValue
+}
+
+// getEnvFloatUnbounded gets an environment variable as a float with a default value (unbounded)
+func getEnvFloatUnbounded(key string, defaultValue float64) float64 {
+	if val := os.Getenv(key); val != "" {
+		if parsed, err := strconv.ParseFloat(val, 64); err == nil {
 			return parsed
 		}
 	}
@@ -273,6 +291,10 @@ func NewTestConfig() *Config {
 			WeightFundamental:     0.4,
 			WeightNews:            0.3,
 			WeightTechnical:       0.3,
+			Strategy:              "default",
+			BuyThreshold:          25,
+			SellThreshold:         -25,
+			MinConfidence:         0,
 		},
 		PositionSizing: PositionSizingConfig{
 			MaxPositionPercent:   0.10,

@@ -43,6 +43,14 @@ jobs:
     - name: Generate templ files
       run: templ generate
 
+    - name: Install goose
+      run: go install github.com/pressly/goose/v3/cmd/goose@latest
+
+    - name: Run database migrations
+      env:
+        DATABASE_URL: "postgres://trademachine:trademachine_dev@localhost:5432/trademachine?sslmode=disable"
+      run: goose -dir migrations postgres "$DATABASE_URL" up
+
     - name: Run tests with coverage
       env:
         DATABASE_URL: "postgres://trademachine:trademachine_dev@localhost:5432/trademachine?sslmode=disable"

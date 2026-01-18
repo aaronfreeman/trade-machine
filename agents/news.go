@@ -136,3 +136,19 @@ func (a *NewsAnalyst) Name() string {
 func (a *NewsAnalyst) Type() models.AgentType {
 	return models.AgentTypeNews
 }
+
+// IsAvailable checks if the agent's dependencies are healthy
+func (a *NewsAnalyst) IsAvailable(ctx context.Context) bool {
+	// Test NewsAPI connectivity with a simple request
+	_, err := a.newsAPI.GetNews(ctx, "AAPL", 1)
+	return err == nil
+}
+
+// GetMetadata returns information about this agent's capabilities
+func (a *NewsAnalyst) GetMetadata() AgentMetadata {
+	return AgentMetadata{
+		Description:      "Analyzes recent news articles to determine market sentiment",
+		Version:          "1.0.0",
+		RequiredServices: []string{"bedrock", "newsapi"},
+	}
+}

@@ -127,3 +127,20 @@ func (a *FundamentalAnalyst) Name() string {
 func (a *FundamentalAnalyst) Type() models.AgentType {
 	return models.AgentTypeFundamental
 }
+
+// IsAvailable checks if the agent's dependencies are healthy
+func (a *FundamentalAnalyst) IsAvailable(ctx context.Context) bool {
+	// Test Alpha Vantage connectivity with a simple request
+	// Using a well-known symbol for the health check
+	_, err := a.alphaVantage.GetFundamentals(ctx, "AAPL")
+	return err == nil
+}
+
+// GetMetadata returns information about this agent's capabilities
+func (a *FundamentalAnalyst) GetMetadata() AgentMetadata {
+	return AgentMetadata{
+		Description:      "Analyzes company fundamentals including P/E ratio, EPS, market cap, and dividend yield",
+		Version:          "1.0.0",
+		RequiredServices: []string{"bedrock", "alpha_vantage"},
+	}
+}

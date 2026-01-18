@@ -9,11 +9,22 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+// AgentMetadata provides information about an agent's capabilities
+type AgentMetadata struct {
+	Description      string   // Human-readable description of what the agent does
+	Version          string   // Agent version for tracking changes
+	RequiredServices []string // List of external services the agent depends on
+}
+
 // Agent interface that all analysts implement
 type Agent interface {
 	Analyze(ctx context.Context, symbol string) (*Analysis, error)
 	Name() string
 	Type() models.AgentType
+
+	// Introspection methods
+	IsAvailable(ctx context.Context) bool // Check if agent dependencies are healthy
+	GetMetadata() AgentMetadata           // Get agent capabilities and requirements
 }
 
 // Analysis result from an agent

@@ -57,6 +57,16 @@ type Agent interface {
     Analyze(ctx context.Context, symbol string) (*Analysis, error)
     Name() string
     Type() models.AgentType
+
+    // Introspection methods
+    IsAvailable(ctx context.Context) bool  // Check if agent dependencies are healthy
+    GetMetadata() AgentMetadata            // Get agent capabilities and requirements
+}
+
+type AgentMetadata struct {
+    Description      string   // Human-readable description of what the agent does
+    Version          string   // Agent version for tracking changes
+    RequiredServices []string // List of external services the agent depends on
 }
 ```
 
@@ -65,6 +75,15 @@ type Agent interface {
 - **Analyze**: Performs analysis on the given stock symbol and returns an Analysis result
 - **Name**: Returns the human-readable name of the agent
 - **Type**: Returns the agent's type identifier (fundamental, technical, news, or manager)
+- **IsAvailable**: Checks if the agent's dependencies (external APIs) are healthy and the agent can perform analysis
+- **GetMetadata**: Returns metadata about the agent including description, version, and required services
+
+### Agent Availability
+
+The Portfolio Manager checks agent availability before running analysis:
+- Agents with unhealthy dependencies are automatically skipped
+- At least one agent must be available for analysis to proceed
+- Unavailable agents are logged with their required services for debugging
 
 ## Analysis Structure
 
@@ -533,3 +552,4 @@ Potential improvements to the agent architecture:
 - Sector rotation signals
 - ~~Implement PositionSizer component~~ (Completed)
 - Additional position sizing strategies (Kelly criterion, volatility-based)
+- ~~Agent interface introspection methods~~ (Completed)

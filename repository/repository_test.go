@@ -578,13 +578,23 @@ func TestRepository_AgentRuns_Fail(t *testing.T) {
 	ctx := context.Background()
 
 	run := models.NewAgentRun(models.AgentTypeNews, "TEST011")
-	repo.CreateAgentRun(ctx, run)
+	if err := repo.CreateAgentRun(ctx, run); err != nil {
+		t.Fatalf("CreateAgentRun failed: %v", err)
+	}
 
 	// Fail the run
 	run.Fail(errors.New("API rate limit exceeded"))
-	repo.UpdateAgentRun(ctx, run)
+	if err := repo.UpdateAgentRun(ctx, run); err != nil {
+		t.Fatalf("UpdateAgentRun failed: %v", err)
+	}
 
-	failed, _ := repo.GetAgentRun(ctx, run.ID)
+	failed, err := repo.GetAgentRun(ctx, run.ID)
+	if err != nil {
+		t.Fatalf("GetAgentRun failed: %v", err)
+	}
+	if failed == nil {
+		t.Fatal("expected agent run, got nil")
+	}
 	if failed.Status != models.AgentRunStatusFailed {
 		t.Errorf("expected status failed, got %s", failed.Status)
 	}

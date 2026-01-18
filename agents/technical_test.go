@@ -386,3 +386,65 @@ func TestTechnicalAnalyst_Analyze_InvalidJSON(t *testing.T) {
 		t.Errorf("Confidence = %v, want 50 for invalid JSON", analysis.Confidence)
 	}
 }
+
+func TestTechnicalAnalyst_IsAvailable_Success(t *testing.T) {
+	bars := make([]marketdata.Bar, 1)
+	bars[0] = marketdata.Bar{Close: 100.0, Volume: 1000000}
+
+	mockAlpaca := &mockAlpacaService{
+		bars: bars,
+	}
+
+	analyst := NewTechnicalAnalyst(nil, mockAlpaca, config.NewTestConfig())
+	ctx := context.Background()
+
+	if !analyst.IsAvailable(ctx) {
+		t.Error("IsAvailable should return true when service is healthy")
+	}
+}
+
+func TestTechnicalAnalyst_IsAvailable_Failure(t *testing.T) {
+	mockAlpaca := &mockAlpacaService{
+		err: errors.New("service unavailable"),
+	}
+
+	analyst := NewTechnicalAnalyst(nil, mockAlpaca, config.NewTestConfig())
+	ctx := context.Background()
+
+	if analyst.IsAvailable(ctx) {
+		t.Error("IsAvailable should return false when service fails")
+	}
+}
+
+func TestTechnicalAnalyst_GetMetadata(t *testing.T) {
+	analyst := &TechnicalAnalyst{}
+	metadata := analyst.GetMetadata()
+
+	if metadata.Description == "" {
+		t.Error("Description should not be empty")
+	}
+	if metadata.Version == "" {
+		t.Error("Version should not be empty")
+	}
+	if len(metadata.RequiredServices) == 0 {
+		t.Error("RequiredServices should not be empty")
+	}
+
+	// Check that required services include both bedrock and alpaca
+	hasAlpaca := false
+	hasBedrock := false
+	for _, svc := range metadata.RequiredServices {
+		if svc == "alpaca" {
+			hasAlpaca = true
+		}
+		if svc == "bedrock" {
+			hasBedrock = true
+		}
+	}
+	if !hasAlpaca {
+		t.Error("RequiredServices should include alpaca")
+	}
+	if !hasBedrock {
+		t.Error("RequiredServices should include bedrock")
+	}
+}

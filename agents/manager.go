@@ -84,6 +84,21 @@ func (m *PortfolioManager) RegisterAgent(agent Agent) {
 	m.agents = append(m.agents, agent)
 }
 
+// getAvailableAgents returns agents whose dependencies are healthy
+func (m *PortfolioManager) getAvailableAgents(ctx context.Context) []Agent {
+	available := make([]Agent, 0, len(m.agents))
+	for _, agent := range m.agents {
+		if agent.IsAvailable(ctx) {
+			available = append(available, agent)
+		} else {
+			observability.Warn("agent unavailable, skipping",
+				"agent", agent.Name(),
+				"required_services", agent.GetMetadata().RequiredServices)
+		}
+	}
+	return available
+}
+
 // AnalyzeSymbol runs all agents and generates a recommendation
 func (m *PortfolioManager) AnalyzeSymbol(ctx context.Context, symbol string) (*models.Recommendation, error) {
 	// Record analysis request metric
@@ -91,12 +106,20 @@ func (m *PortfolioManager) AnalyzeSymbol(ctx context.Context, symbol string) (*m
 	metrics.RecordAnalysisRequest(symbol)
 	analysisTimer := metrics.NewTimer()
 
-	// Run all agents in parallel
-	var wg sync.WaitGroup
-	analyses := make([]*Analysis, len(m.agents))
-	errors := make([]error, len(m.agents))
+	// Filter to available agents
+	availableAgents := m.getAvailableAgents(ctx)
+	if len(availableAgents) == 0 {
+		analysisTimer.ObserveAnalysis(symbol, "error")
+		metrics.RecordAnalysisError(symbol, "no_agents_available")
+		return nil, fmt.Errorf("no agents available to analyze %s", symbol)
+	}
 
-	for i, agent := range m.agents {
+	// Run all available agents in parallel
+	var wg sync.WaitGroup
+	analyses := make([]*Analysis, len(availableAgents))
+	errors := make([]error, len(availableAgents))
+
+	for i, agent := range availableAgents {
 		wg.Add(1)
 		go func(idx int, ag Agent) {
 			defer wg.Done()
@@ -139,7 +162,7 @@ func (m *PortfolioManager) AnalyzeSymbol(ctx context.Context, symbol string) (*m
 			validAnalyses = append(validAnalyses, analysis)
 		} else if errors[i] != nil {
 			observability.Warn("agent analysis failed",
-				"agent", m.agents[i].Name(),
+				"agent", availableAgents[i].Name(),
 				"symbol", symbol,
 				"error", errors[i])
 		}

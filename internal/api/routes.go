@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"net/http"
@@ -11,7 +11,7 @@ import (
 )
 
 // NewRouter creates and configures a Chi router with all routes
-func NewRouter(h *APIHandler, cfg *config.Config) http.Handler {
+func NewRouter(h *Handler, cfg *config.Config) http.Handler {
 	r := chi.NewRouter()
 
 	// Middleware stack
@@ -19,44 +19,44 @@ func NewRouter(h *APIHandler, cfg *config.Config) http.Handler {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(time.Duration(cfg.Agent.TimeoutSeconds) * time.Second))
-	r.Use(corsMiddleware(cfg.HTTP.CORSAllowedOrigins))
+	r.Use(CORSMiddleware(cfg.HTTP.CORSAllowedOrigins))
 
 	// Root routes
-	r.Get("/", h.handleIndex)
-	r.Get("/index.html", h.handleIndex)
+	r.Get("/", h.HandleIndex)
+	r.Get("/index.html", h.HandleIndex)
 
 	// API routes
 	r.Route("/api", func(r chi.Router) {
 		// Health check
-		r.Get("/health", h.handleHealth)
+		r.Get("/health", h.HandleHealth)
 
 		// Portfolio
-		r.Get("/portfolio", h.handleGetPortfolio)
-		r.Get("/positions", h.handleGetPositions)
+		r.Get("/portfolio", h.HandleGetPortfolio)
+		r.Get("/positions", h.HandleGetPositions)
 
 		// Recommendations
 		r.Route("/recommendations", func(r chi.Router) {
-			r.Get("/", h.handleGetRecommendations)
-			r.Get("/pending", h.handleGetPendingRecommendations)
-			r.Post("/{id}/approve", h.handleApproveRecommendation)
-			r.Post("/{id}/reject", h.handleRejectRecommendation)
+			r.Get("/", h.HandleGetRecommendations)
+			r.Get("/pending", h.HandleGetPendingRecommendations)
+			r.Post("/{id}/approve", h.HandleApproveRecommendation)
+			r.Post("/{id}/reject", h.HandleRejectRecommendation)
 		})
 
 		// Analysis
-		r.Post("/analyze", h.handleAnalyzeStock)
+		r.Post("/analyze", h.HandleAnalyzeStock)
 
 		// Trades
-		r.Get("/trades", h.handleGetTrades)
+		r.Get("/trades", h.HandleGetTrades)
 
 		// Agent runs
-		r.Get("/agents/runs", h.handleGetAgentRuns)
+		r.Get("/agents/runs", h.HandleGetAgentRuns)
 	})
 
 	return r
 }
 
-// corsMiddleware returns CORS middleware with the specified allowed origins
-func corsMiddleware(allowedOrigins string) func(next http.Handler) http.Handler {
+// CORSMiddleware returns CORS middleware with the specified allowed origins
+func CORSMiddleware(allowedOrigins string) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			w.Header().Set("Access-Control-Allow-Origin", allowedOrigins)

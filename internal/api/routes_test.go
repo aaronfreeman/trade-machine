@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"net/http"
@@ -7,17 +7,17 @@ import (
 )
 
 func TestNewRouter(t *testing.T) {
-	app := testApp(nil)
-	router := testRouter(app)
+	a := testApp(nil)
+	router := testRouter(a)
 
 	if router == nil {
 		t.Fatal("expected router to be created")
 	}
 }
 
-func TestCorsMiddleware(t *testing.T) {
+func TestCORSMiddleware(t *testing.T) {
 	allowedOrigins := "http://localhost:3000"
-	middleware := corsMiddleware(allowedOrigins)
+	middleware := CORSMiddleware(allowedOrigins)
 
 	handler := middleware(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -66,8 +66,8 @@ func TestCorsMiddleware(t *testing.T) {
 }
 
 func TestRouterRoutes(t *testing.T) {
-	app := testApp(nil)
-	router := testRouter(app)
+	a := testApp(nil)
+	router := testRouter(a)
 
 	tests := []struct {
 		name           string

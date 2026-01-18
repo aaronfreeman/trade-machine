@@ -6,6 +6,8 @@ import (
 
 	"trade-machine/agents"
 	"trade-machine/config"
+	"trade-machine/internal/api"
+	"trade-machine/internal/app"
 	"trade-machine/observability"
 	"trade-machine/repository"
 	"trade-machine/services"
@@ -103,9 +105,9 @@ func main() {
 	}
 
 	// Initialize app
-	app := NewApp(cfg, repo, portfolioManager, alpacaService)
-	apiHandler := NewAPIHandler(app, cfg)
-	router := NewRouter(apiHandler, cfg)
+	application := app.New(cfg, repo, portfolioManager, alpacaService)
+	handler := api.NewHandler(application, cfg)
+	router := api.NewRouter(handler, cfg)
 
 	// Run Wails application
 	err = wails.Run(&options.App{
@@ -116,8 +118,8 @@ func main() {
 			Handler: router,
 		},
 		BackgroundColour: options.NewRGB(27, 38, 54),
-		OnStartup:        app.startup,
-		OnShutdown:       app.shutdown,
+		OnStartup:        application.Startup,
+		OnShutdown:       application.Shutdown,
 	})
 
 	if err != nil {

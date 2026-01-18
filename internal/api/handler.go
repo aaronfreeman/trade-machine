@@ -1,4 +1,4 @@
-package main
+package api
 
 import (
 	"encoding/json"
@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"trade-machine/config"
+	"trade-machine/internal/app"
 	"trade-machine/models"
 	"trade-machine/services"
 	"trade-machine/templates"
@@ -16,25 +17,25 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-// APIHandler handles HTTP API requests
-type APIHandler struct {
-	app *App
+// Handler handles HTTP API requests
+type Handler struct {
+	app *app.App
 	cfg *config.Config
 }
 
-// NewAPIHandler creates a new APIHandler
-func NewAPIHandler(app *App, cfg *config.Config) *APIHandler {
-	return &APIHandler{app: app, cfg: cfg}
+// NewHandler creates a new Handler
+func NewHandler(application *app.App, cfg *config.Config) *Handler {
+	return &Handler{app: application, cfg: cfg}
 }
 
-// handleIndex serves the main application page using templ
-func (h *APIHandler) handleIndex(w http.ResponseWriter, r *http.Request) {
+// HandleIndex serves the main application page using templ
+func (h *Handler) HandleIndex(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	templates.Index().Render(r.Context(), w)
 }
 
-// handleHealth returns the health status of the application
-func (h *APIHandler) handleHealth(w http.ResponseWriter, r *http.Request) {
+// HandleHealth returns the health status of the application
+func (h *Handler) HandleHealth(w http.ResponseWriter, r *http.Request) {
 	status := map[string]interface{}{
 		"status": "ok",
 		"services": map[string]string{
@@ -42,9 +43,9 @@ func (h *APIHandler) handleHealth(w http.ResponseWriter, r *http.Request) {
 		},
 	}
 
-	if h.app.repo != nil {
+	if h.app.Repo() != nil {
 		ctx := r.Context()
-		if err := h.app.repo.Health(ctx); err == nil {
+		if err := h.app.Repo().Health(ctx); err == nil {
 			status["services"].(map[string]string)["database"] = "connected"
 		} else {
 			status["services"].(map[string]string)["database"] = "disconnected"
@@ -69,8 +70,8 @@ func (h *APIHandler) handleHealth(w http.ResponseWriter, r *http.Request) {
 	h.jsonResponse(w, status)
 }
 
-// handleGetPortfolio returns portfolio summary
-func (h *APIHandler) handleGetPortfolio(w http.ResponseWriter, r *http.Request) {
+// HandleGetPortfolio returns portfolio summary
+func (h *Handler) HandleGetPortfolio(w http.ResponseWriter, r *http.Request) {
 	positions, err := h.app.GetPositions()
 	if err != nil {
 		h.jsonError(w, err.Error(), http.StatusInternalServerError)
@@ -83,8 +84,8 @@ func (h *APIHandler) handleGetPortfolio(w http.ResponseWriter, r *http.Request) 
 	})
 }
 
-// handleGetPositions returns all positions
-func (h *APIHandler) handleGetPositions(w http.ResponseWriter, r *http.Request) {
+// HandleGetPositions returns all positions
+func (h *Handler) HandleGetPositions(w http.ResponseWriter, r *http.Request) {
 	positions, err := h.app.GetPositions()
 	if err != nil {
 		h.jsonError(w, err.Error(), http.StatusInternalServerError)
@@ -94,9 +95,9 @@ func (h *APIHandler) handleGetPositions(w http.ResponseWriter, r *http.Request) 
 	h.jsonResponse(w, positions)
 }
 
-// handleGetRecommendations returns recommendations
-func (h *APIHandler) handleGetRecommendations(w http.ResponseWriter, r *http.Request) {
-	limit := h.parseLimitParam(r, 50)
+// HandleGetRecommendations returns recommendations
+func (h *Handler) HandleGetRecommendations(w http.ResponseWriter, r *http.Request) {
+	limit := h.ParseLimitParam(r, 50)
 
 	recs, err := h.app.GetRecommendations(limit)
 	if err != nil {
@@ -107,8 +108,8 @@ func (h *APIHandler) handleGetRecommendations(w http.ResponseWriter, r *http.Req
 	h.jsonResponse(w, recs)
 }
 
-// handleGetPendingRecommendations returns pending recommendations
-func (h *APIHandler) handleGetPendingRecommendations(w http.ResponseWriter, r *http.Request) {
+// HandleGetPendingRecommendations returns pending recommendations
+func (h *Handler) HandleGetPendingRecommendations(w http.ResponseWriter, r *http.Request) {
 	recs, err := h.app.GetPendingRecommendations()
 	if err != nil {
 		h.jsonError(w, err.Error(), http.StatusInternalServerError)
@@ -118,8 +119,8 @@ func (h *APIHandler) handleGetPendingRecommendations(w http.ResponseWriter, r *h
 	h.jsonResponse(w, recs)
 }
 
-// handleApproveRecommendation approves a recommendation
-func (h *APIHandler) handleApproveRecommendation(w http.ResponseWriter, r *http.Request) {
+// HandleApproveRecommendation approves a recommendation
+func (h *Handler) HandleApproveRecommendation(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
 		h.jsonError(w, "Missing recommendation ID", http.StatusBadRequest)
@@ -134,8 +135,8 @@ func (h *APIHandler) handleApproveRecommendation(w http.ResponseWriter, r *http.
 	h.jsonResponse(w, map[string]string{"status": "approved", "id": id})
 }
 
-// handleRejectRecommendation rejects a recommendation
-func (h *APIHandler) handleRejectRecommendation(w http.ResponseWriter, r *http.Request) {
+// HandleRejectRecommendation rejects a recommendation
+func (h *Handler) HandleRejectRecommendation(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
 		h.jsonError(w, "Missing recommendation ID", http.StatusBadRequest)
@@ -150,8 +151,8 @@ func (h *APIHandler) handleRejectRecommendation(w http.ResponseWriter, r *http.R
 	h.jsonResponse(w, map[string]string{"status": "rejected", "id": id})
 }
 
-// handleAnalyzeStock triggers analysis of a stock
-func (h *APIHandler) handleAnalyzeStock(w http.ResponseWriter, r *http.Request) {
+// HandleAnalyzeStock triggers analysis of a stock
+func (h *Handler) HandleAnalyzeStock(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Symbol string `json:"symbol"`
 	}
@@ -169,7 +170,7 @@ func (h *APIHandler) handleAnalyzeStock(w http.ResponseWriter, r *http.Request) 
 	// Normalize symbol to uppercase
 	req.Symbol = strings.ToUpper(strings.TrimSpace(req.Symbol))
 
-	if err := h.validateSymbol(req.Symbol); err != nil {
+	if err := h.ValidateSymbol(req.Symbol); err != nil {
 		h.jsonError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
@@ -183,9 +184,9 @@ func (h *APIHandler) handleAnalyzeStock(w http.ResponseWriter, r *http.Request) 
 	h.jsonResponse(w, rec)
 }
 
-// handleGetTrades returns recent trades
-func (h *APIHandler) handleGetTrades(w http.ResponseWriter, r *http.Request) {
-	limit := h.parseLimitParam(r, 50)
+// HandleGetTrades returns recent trades
+func (h *Handler) HandleGetTrades(w http.ResponseWriter, r *http.Request) {
+	limit := h.ParseLimitParam(r, 50)
 
 	trades, err := h.app.GetTrades(limit)
 	if err != nil {
@@ -196,9 +197,9 @@ func (h *APIHandler) handleGetTrades(w http.ResponseWriter, r *http.Request) {
 	h.jsonResponse(w, trades)
 }
 
-// handleGetAgentRuns returns recent agent runs
-func (h *APIHandler) handleGetAgentRuns(w http.ResponseWriter, r *http.Request) {
-	limit := h.parseLimitParam(r, 50)
+// HandleGetAgentRuns returns recent agent runs
+func (h *Handler) HandleGetAgentRuns(w http.ResponseWriter, r *http.Request) {
+	limit := h.ParseLimitParam(r, 50)
 
 	runs, err := h.app.GetAgentRuns(limit)
 	if err != nil {
@@ -211,7 +212,8 @@ func (h *APIHandler) handleGetAgentRuns(w http.ResponseWriter, r *http.Request) 
 
 // Helper functions
 
-func (h *APIHandler) validateSymbol(symbol string) error {
+// ValidateSymbol validates a stock symbol
+func (h *Handler) ValidateSymbol(symbol string) error {
 	if symbol == "" {
 		return fmt.Errorf("symbol is required")
 	}
@@ -228,7 +230,8 @@ func (h *APIHandler) validateSymbol(symbol string) error {
 	return nil
 }
 
-func (h *APIHandler) parseLimitParam(r *http.Request, defaultLimit int) int {
+// ParseLimitParam parses the limit query parameter
+func (h *Handler) ParseLimitParam(r *http.Request, defaultLimit int) int {
 	if limitStr := r.URL.Query().Get("limit"); limitStr != "" {
 		if l, err := strconv.Atoi(limitStr); err == nil && l > 0 {
 			return l
@@ -237,12 +240,12 @@ func (h *APIHandler) parseLimitParam(r *http.Request, defaultLimit int) int {
 	return defaultLimit
 }
 
-func (h *APIHandler) jsonResponse(w http.ResponseWriter, data interface{}) {
+func (h *Handler) jsonResponse(w http.ResponseWriter, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(data)
 }
 
-func (h *APIHandler) jsonError(w http.ResponseWriter, message string, status int) {
+func (h *Handler) jsonError(w http.ResponseWriter, message string, status int) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(map[string]string{"error": message})

@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"context"
@@ -11,8 +11,8 @@ import (
 	"github.com/google/uuid"
 )
 
-// AppRepositoryInterface defines the repository operations needed by App
-type AppRepositoryInterface interface {
+// RepositoryInterface defines the repository operations needed by App
+type RepositoryInterface interface {
 	Close()
 	Health(ctx context.Context) error
 	GetRecommendations(ctx context.Context, status models.RecommendationStatus, limit int) ([]models.Recommendation, error)
@@ -33,14 +33,14 @@ type PortfolioManagerInterface interface {
 type App struct {
 	ctx              context.Context
 	cfg              *config.Config
-	repo             AppRepositoryInterface
+	repo             RepositoryInterface
 	portfolioManager PortfolioManagerInterface
 	alpacaService    services.AlpacaServiceInterface
 	analysisSem      chan struct{}
 }
 
-// NewApp creates a new App application struct
-func NewApp(cfg *config.Config, repo AppRepositoryInterface, manager PortfolioManagerInterface, alpaca services.AlpacaServiceInterface) *App {
+// New creates a new App application struct
+func New(cfg *config.Config, repo RepositoryInterface, manager PortfolioManagerInterface, alpaca services.AlpacaServiceInterface) *App {
 	return &App{
 		cfg:              cfg,
 		repo:             repo,
@@ -50,16 +50,21 @@ func NewApp(cfg *config.Config, repo AppRepositoryInterface, manager PortfolioMa
 	}
 }
 
-// startup is called when the app starts
-func (a *App) startup(ctx context.Context) {
+// Startup is called when the app starts
+func (a *App) Startup(ctx context.Context) {
 	a.ctx = ctx
 }
 
-// shutdown is called when the app is closing
-func (a *App) shutdown(ctx context.Context) {
+// Shutdown is called when the app is closing
+func (a *App) Shutdown(ctx context.Context) {
 	if a.repo != nil {
 		a.repo.Close()
 	}
+}
+
+// Repo returns the repository interface for API handlers
+func (a *App) Repo() RepositoryInterface {
+	return a.repo
 }
 
 // AnalyzeStock runs all agents to analyze a stock and generate a recommendation
@@ -100,7 +105,7 @@ func (a *App) ApproveRecommendation(id string) error {
 		return fmt.Errorf("database not initialized")
 	}
 
-	uuid, err := parseUUID(id)
+	uuid, err := ParseUUID(id)
 	if err != nil {
 		return err
 	}
@@ -114,7 +119,7 @@ func (a *App) RejectRecommendation(id string) error {
 		return fmt.Errorf("database not initialized")
 	}
 
-	uuid, err := parseUUID(id)
+	uuid, err := ParseUUID(id)
 	if err != nil {
 		return err
 	}
@@ -146,10 +151,16 @@ func (a *App) GetAgentRuns(limit int) ([]models.AgentRun, error) {
 	return a.repo.GetAgentRuns(a.ctx, "", limit)
 }
 
-func parseUUID(id string) ([16]byte, error) {
+// ParseUUID parses a string UUID into a [16]byte
+func ParseUUID(id string) ([16]byte, error) {
 	parsed, err := uuid.Parse(id)
 	if err != nil {
 		return [16]byte{}, fmt.Errorf("invalid UUID: %w", err)
 	}
 	return parsed, nil
+}
+
+// AnalysisSemCapacity returns the capacity of the analysis semaphore (for testing)
+func (a *App) AnalysisSemCapacity() int {
+	return cap(a.analysisSem)
 }

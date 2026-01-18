@@ -108,8 +108,15 @@ func (m *mockAlpacaService) GetLatestTrade(ctx context.Context, symbol string) (
 	return nil, nil
 }
 
-func (m *mockAlpacaService) GetAccount(ctx context.Context) (map[string]interface{}, error) {
-	return nil, nil
+func (m *mockAlpacaService) GetAccount(ctx context.Context) (*models.Account, error) {
+	return &models.Account{
+		ID:             "mock-account",
+		Currency:       "USD",
+		BuyingPower:    decimal.NewFromInt(100000),
+		Cash:           decimal.NewFromInt(50000),
+		PortfolioValue: decimal.NewFromInt(100000),
+		Equity:         decimal.NewFromInt(100000),
+	}, nil
 }
 
 func (m *mockAlpacaService) PlaceOrder(ctx context.Context, symbol string, qty decimal.Decimal, side models.TradeSide, orderType string) (string, error) {

@@ -8,6 +8,8 @@ import (
 	"trade-machine/config"
 	"trade-machine/models"
 	"trade-machine/repository"
+
+	"github.com/shopspring/decimal"
 )
 
 type mockAgent struct {
@@ -32,6 +34,33 @@ func (m *mockAgent) Type() models.AgentType {
 	return m.agentType
 }
 
+// integrationMockAccountProvider for integration tests
+type integrationMockAccountProvider struct{}
+
+func (m *integrationMockAccountProvider) GetAccount(ctx context.Context) (*models.Account, error) {
+	return &models.Account{
+		ID:             "test-account",
+		Currency:       "USD",
+		BuyingPower:    decimal.NewFromInt(100000),
+		Cash:           decimal.NewFromInt(50000),
+		PortfolioValue: decimal.NewFromInt(100000),
+		Equity:         decimal.NewFromInt(100000),
+	}, nil
+}
+
+func (m *integrationMockAccountProvider) GetPosition(ctx context.Context, symbol string) (*models.Position, error) {
+	return nil, nil
+}
+
+func (m *integrationMockAccountProvider) GetQuote(ctx context.Context, symbol string) (*models.Quote, error) {
+	return &models.Quote{
+		Symbol: symbol,
+		Last:   decimal.NewFromInt(150),
+		Bid:    decimal.NewFromFloat(149.50),
+		Ask:    decimal.NewFromFloat(150.50),
+	}, nil
+}
+
 func TestPortfolioManager_AnalyzeSymbol_Integration(t *testing.T) {
 	ctx := context.Background()
 	connString := "host=localhost port=5432 user=trademachine password=trademachine_dev dbname=trademachine sslmode=disable"
@@ -41,7 +70,7 @@ func TestPortfolioManager_AnalyzeSymbol_Integration(t *testing.T) {
 	}
 	defer repo.Close()
 
-	manager := NewPortfolioManager(repo, config.NewTestConfig())
+	manager := NewPortfolioManager(repo, config.NewTestConfig(), &integrationMockAccountProvider{})
 
 	fundamental := &mockAgent{
 		name:      "Mock Fundamental",
@@ -160,7 +189,7 @@ func TestPortfolioManager_AnalyzeSymbol_PartialFailure(t *testing.T) {
 	}
 	defer repo.Close()
 
-	manager := NewPortfolioManager(repo, config.NewTestConfig())
+	manager := NewPortfolioManager(repo, config.NewTestConfig(), &integrationMockAccountProvider{})
 
 	fundamental := &mockAgent{
 		name:      "Mock Fundamental",
@@ -204,7 +233,7 @@ func TestPortfolioManager_AnalyzeSymbol_AllFail(t *testing.T) {
 	}
 	defer repo.Close()
 
-	manager := NewPortfolioManager(repo, config.NewTestConfig())
+	manager := NewPortfolioManager(repo, config.NewTestConfig(), &integrationMockAccountProvider{})
 
 	failingAgent := &mockAgent{
 		name:      "Failing Agent",

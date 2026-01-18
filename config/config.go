@@ -15,12 +15,15 @@ type Config struct {
 	AWS AWSConfig
 
 	// External service configurations
-	Alpaca      AlpacaConfig
+	Alpaca       AlpacaConfig
 	AlphaVantage AlphaVantageConfig
-	NewsAPI     NewsAPIConfig
+	NewsAPI      NewsAPIConfig
 
 	// Agent configuration
 	Agent AgentConfig
+
+	// Position sizing configuration
+	PositionSizing PositionSizingConfig
 
 	// HTTP configuration
 	HTTP HTTPConfig
@@ -66,6 +69,15 @@ type AgentConfig struct {
 	WeightTechnical          float64
 }
 
+// PositionSizingConfig holds position sizing configuration
+type PositionSizingConfig struct {
+	MaxPositionPercent   float64
+	RiskPercent          float64
+	MinShares            int64
+	MaxShares            int64
+	UseConfidenceScaling bool
+}
+
 // HTTPConfig holds HTTP server configuration
 type HTTPConfig struct {
 	CORSAllowedOrigins string
@@ -101,6 +113,13 @@ func Load() (*Config, error) {
 			WeightFundamental:        getEnvFloat("AGENT_WEIGHT_FUNDAMENTAL", 0.4),
 			WeightNews:               getEnvFloat("AGENT_WEIGHT_NEWS", 0.3),
 			WeightTechnical:          getEnvFloat("AGENT_WEIGHT_TECHNICAL", 0.3),
+		},
+		PositionSizing: PositionSizingConfig{
+			MaxPositionPercent:   getEnvFloatRange("POSITION_MAX_PERCENT", 0.10, 0.01, 1.0),
+			RiskPercent:          getEnvFloatRange("POSITION_RISK_PERCENT", 0.02, 0.001, 0.1),
+			MinShares:            int64(getEnvInt("POSITION_MIN_SHARES", 1)),
+			MaxShares:            int64(getEnvInt("POSITION_MAX_SHARES", 0)),
+			UseConfidenceScaling: getEnvBool("POSITION_USE_CONFIDENCE_SCALING", true),
 		},
 		HTTP: HTTPConfig{
 			CORSAllowedOrigins: getEnvString("CORS_ALLOWED_ORIGINS", "*"),
@@ -204,6 +223,26 @@ func getEnvFloat(key string, defaultValue float64) float64 {
 	return defaultValue
 }
 
+// getEnvFloatRange gets an environment variable as a float with min/max bounds
+func getEnvFloatRange(key string, defaultValue, minVal, maxVal float64) float64 {
+	if val := os.Getenv(key); val != "" {
+		if parsed, err := strconv.ParseFloat(val, 64); err == nil && parsed >= minVal && parsed <= maxVal {
+			return parsed
+		}
+	}
+	return defaultValue
+}
+
+// getEnvBool gets an environment variable as a bool with a default value
+func getEnvBool(key string, defaultValue bool) bool {
+	if val := os.Getenv(key); val != "" {
+		if parsed, err := strconv.ParseBool(val); err == nil {
+			return parsed
+		}
+	}
+	return defaultValue
+}
+
 // NewTestConfig creates a Config with default values for testing
 func NewTestConfig() *Config {
 	return &Config{
@@ -234,6 +273,13 @@ func NewTestConfig() *Config {
 			WeightFundamental:     0.4,
 			WeightNews:            0.3,
 			WeightTechnical:       0.3,
+		},
+		PositionSizing: PositionSizingConfig{
+			MaxPositionPercent:   0.10,
+			RiskPercent:          0.02,
+			MinShares:            1,
+			MaxShares:            0,
+			UseConfidenceScaling: true,
 		},
 		HTTP: HTTPConfig{
 			CORSAllowedOrigins: "*",

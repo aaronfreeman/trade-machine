@@ -89,8 +89,8 @@ func main() {
 
 	// Initialize Portfolio Manager and register agents
 	var portfolioManager *agents.PortfolioManager
-	if repo != nil {
-		portfolioManager = agents.NewPortfolioManager(repo, cfg)
+	if repo != nil && alpacaService != nil {
+		portfolioManager = agents.NewPortfolioManager(repo, cfg, alpacaService)
 
 		// Register agents if their dependencies are available
 		if bedrockService != nil && alphaVantageService != nil {
@@ -99,9 +99,11 @@ func main() {
 		if bedrockService != nil && newsAPIService != nil {
 			portfolioManager.RegisterAgent(agents.NewNewsAnalyst(bedrockService, newsAPIService))
 		}
-		if bedrockService != nil && alpacaService != nil {
+		if bedrockService != nil {
 			portfolioManager.RegisterAgent(agents.NewTechnicalAnalyst(bedrockService, alpacaService, cfg))
 		}
+	} else if repo != nil {
+		observability.Warn("Alpaca service required for position sizing, portfolio manager disabled")
 	}
 
 	// Initialize app

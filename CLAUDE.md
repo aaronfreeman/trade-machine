@@ -290,6 +290,48 @@ Based on analysis from 3 agents (Fundamental: 50.0, Sentiment: 40.0, Technical: 
 [News Sentiment Analyst] Recent news shows analyst upgrades with focus on new products...
 ```
 
+## Position Sizing
+
+The Portfolio Manager uses intelligent position sizing based on:
+- **Portfolio Value**: Maximum position is a percentage of total portfolio
+- **Buying Power**: Positions are limited by available buying power
+- **Confidence Scaling**: Higher confidence leads to larger position sizes
+- **Existing Positions**: SELL recommendations use existing position quantity
+
+### Position Sizing Algorithm
+
+```go
+// For BUY recommendations:
+maxPositionValue = portfolioValue * maxPositionPercent
+if useConfidenceScaling {
+    confidenceFactor = 0.5 + (confidence / 200.0)  // Maps 0-100 to 0.5-1.0
+    maxPositionValue *= confidenceFactor
+}
+maxPositionValue = min(maxPositionValue, buyingPower)
+shares = floor(maxPositionValue / currentPrice)
+shares = clamp(shares, minShares, maxShares)
+
+// For SELL recommendations:
+shares = existingPosition.Quantity  // Sell entire position
+```
+
+### Configuration
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `POSITION_MAX_PERCENT` | 0.10 | Max % of portfolio per position |
+| `POSITION_RISK_PERCENT` | 0.02 | Base risk % per trade |
+| `POSITION_MIN_SHARES` | 1 | Minimum shares to recommend |
+| `POSITION_MAX_SHARES` | 0 | Max shares (0 = unlimited) |
+| `POSITION_USE_CONFIDENCE_SCALING` | true | Scale by confidence |
+
+### Examples
+
+With $100,000 portfolio, 10% max position, $100 stock:
+- 50% confidence → ~62 shares ($6,250)
+- 75% confidence → ~87 shares ($8,750)
+- 100% confidence → 100 shares ($10,000)
+
 ## Parallel Execution
 
 The Portfolio Manager uses goroutines to run all agents concurrently:
@@ -437,6 +479,11 @@ The agent system can be configured through environment variables:
 | `AGENT_WEIGHT_TECHNICAL` | 0.3 | Weight for technical analysis (30%) |
 | `BEDROCK_MAX_TOKENS` | 4096 | Max tokens for Claude API responses |
 | `BEDROCK_ANTHROPIC_VERSION` | bedrock-2023-05-31 | Anthropic API version |
+| `POSITION_MAX_PERCENT` | 0.10 | Maximum portfolio % for single position (10%) |
+| `POSITION_RISK_PERCENT` | 0.02 | Base risk % per trade (2%) |
+| `POSITION_MIN_SHARES` | 1 | Minimum shares to recommend |
+| `POSITION_MAX_SHARES` | 0 | Maximum shares per position (0 = unlimited) |
+| `POSITION_USE_CONFIDENCE_SCALING` | true | Scale position size by confidence level |
 
 **Note**: Agent weights should sum to 1.0 for proper score synthesis.
 
@@ -484,3 +531,5 @@ Potential improvements to the agent architecture:
 - Target price calculations based on fundamental valuation
 - Risk assessment agent
 - Sector rotation signals
+- ~~Implement PositionSizer component~~ (Completed)
+- Additional position sizing strategies (Kelly criterion, volatility-based)

@@ -6,6 +6,8 @@ import (
 
 	"trade-machine/config"
 	"trade-machine/models"
+
+	"github.com/shopspring/decimal"
 )
 
 // testConfig returns a test configuration
@@ -13,8 +15,47 @@ func testConfig() *config.Config {
 	return config.NewTestConfig()
 }
 
+// mockAccountProvider implements AccountProvider for testing
+type mockAccountProvider struct {
+	account  *models.Account
+	position *models.Position
+	quote    *models.Quote
+}
+
+func newMockAccountProvider() *mockAccountProvider {
+	return &mockAccountProvider{
+		account: &models.Account{
+			ID:             "test-account",
+			Currency:       "USD",
+			BuyingPower:    decimal.NewFromInt(100000),
+			Cash:           decimal.NewFromInt(50000),
+			PortfolioValue: decimal.NewFromInt(100000),
+			Equity:         decimal.NewFromInt(100000),
+		},
+		quote: &models.Quote{
+			Symbol: "TEST",
+			Last:   decimal.NewFromInt(100),
+			Bid:    decimal.NewFromFloat(99.50),
+			Ask:    decimal.NewFromFloat(100.50),
+		},
+	}
+}
+
+func (m *mockAccountProvider) GetAccount(ctx context.Context) (*models.Account, error) {
+	return m.account, nil
+}
+
+func (m *mockAccountProvider) GetPosition(ctx context.Context, symbol string) (*models.Position, error) {
+	return m.position, nil
+}
+
+func (m *mockAccountProvider) GetQuote(ctx context.Context, symbol string) (*models.Quote, error) {
+	m.quote.Symbol = symbol
+	return m.quote, nil
+}
+
 func TestPortfolioManager_RegisterAgent(t *testing.T) {
-	manager := NewPortfolioManager(nil, testConfig())
+	manager := NewPortfolioManager(nil, testConfig(), newMockAccountProvider())
 
 	if len(manager.GetAgents()) != 0 {
 		t.Errorf("Initial agents count = %v, want 0", len(manager.GetAgents()))
@@ -38,21 +79,21 @@ func TestPortfolioManager_RegisterAgent(t *testing.T) {
 }
 
 func TestPortfolioManager_Name(t *testing.T) {
-	manager := NewPortfolioManager(nil, testConfig())
+	manager := NewPortfolioManager(nil, testConfig(), newMockAccountProvider())
 	if manager.Name() != "Portfolio Manager" {
 		t.Errorf("Name() = %v, want 'Portfolio Manager'", manager.Name())
 	}
 }
 
 func TestPortfolioManager_Type(t *testing.T) {
-	manager := NewPortfolioManager(nil, testConfig())
+	manager := NewPortfolioManager(nil, testConfig(), newMockAccountProvider())
 	if manager.Type() != models.AgentTypeManager {
 		t.Errorf("Type() = %v, want AgentTypeManager", manager.Type())
 	}
 }
 
 func TestPortfolioManager_SynthesizeRecommendation(t *testing.T) {
-	manager := NewPortfolioManager(nil, testConfig())
+	manager := NewPortfolioManager(nil, testConfig(), newMockAccountProvider())
 
 	// Test with multiple analyses
 	analyses := []*Analysis{
@@ -79,7 +120,7 @@ func TestPortfolioManager_SynthesizeRecommendation(t *testing.T) {
 		},
 	}
 
-	rec := manager.synthesizeRecommendation("AAPL", analyses)
+	rec := manager.synthesizeRecommendation(context.Background(), "AAPL", analyses)
 
 	if rec.Symbol != "AAPL" {
 		t.Errorf("Symbol = %v, want 'AAPL'", rec.Symbol)
@@ -108,7 +149,7 @@ func TestPortfolioManager_SynthesizeRecommendation(t *testing.T) {
 }
 
 func TestPortfolioManager_SynthesizeRecommendation_Hold(t *testing.T) {
-	manager := NewPortfolioManager(nil, testConfig())
+	manager := NewPortfolioManager(nil, testConfig(), newMockAccountProvider())
 
 	// Test with mixed scores that should result in hold
 	analyses := []*Analysis{
@@ -128,7 +169,7 @@ func TestPortfolioManager_SynthesizeRecommendation_Hold(t *testing.T) {
 		},
 	}
 
-	rec := manager.synthesizeRecommendation("MSFT", analyses)
+	rec := manager.synthesizeRecommendation(context.Background(), "MSFT", analyses)
 
 	// With mixed low scores, should be hold
 	if rec.Action != models.RecommendationActionHold {
@@ -137,7 +178,7 @@ func TestPortfolioManager_SynthesizeRecommendation_Hold(t *testing.T) {
 }
 
 func TestPortfolioManager_SynthesizeRecommendation_Sell(t *testing.T) {
-	manager := NewPortfolioManager(nil, testConfig())
+	manager := NewPortfolioManager(nil, testConfig(), newMockAccountProvider())
 
 	// Test with negative scores that should result in sell
 	analyses := []*Analysis{
@@ -164,7 +205,7 @@ func TestPortfolioManager_SynthesizeRecommendation_Sell(t *testing.T) {
 		},
 	}
 
-	rec := manager.synthesizeRecommendation("TSLA", analyses)
+	rec := manager.synthesizeRecommendation(context.Background(), "TSLA", analyses)
 
 	// With all negative scores, action should be sell
 	if rec.Action != models.RecommendationActionSell {
@@ -173,7 +214,7 @@ func TestPortfolioManager_SynthesizeRecommendation_Sell(t *testing.T) {
 }
 
 func TestPortfolioManager_GetAgents(t *testing.T) {
-	manager := NewPortfolioManager(nil, testConfig())
+	manager := NewPortfolioManager(nil, testConfig(), newMockAccountProvider())
 
 	agents := manager.GetAgents()
 	if agents == nil {

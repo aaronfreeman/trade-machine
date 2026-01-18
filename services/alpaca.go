@@ -53,38 +53,27 @@ func NewAlpacaService(apiKey, apiSecret, baseURL string) *AlpacaService {
 }
 
 // GetAccount returns the current account information
-func (s *AlpacaService) GetAccount(ctx context.Context) (map[string]interface{}, error) {
-	return WithCircuitBreaker(ctx, BreakerAlpaca, func() (map[string]interface{}, error) {
+func (s *AlpacaService) GetAccount(ctx context.Context) (*models.Account, error) {
+	return WithCircuitBreaker(ctx, BreakerAlpaca, func() (*models.Account, error) {
 		account, err := s.tradeClient.GetAccount()
 		if err != nil {
 			return nil, err
 		}
 
-		return map[string]interface{}{
-			"id":                      account.ID,
-			"account_number":          account.AccountNumber,
-			"status":                  account.Status,
-			"currency":                account.Currency,
-			"buying_power":            account.BuyingPower,
-			"cash":                    account.Cash,
-			"portfolio_value":         account.PortfolioValue,
-			"pattern_day_trader":      account.PatternDayTrader,
-			"trading_blocked":         account.TradingBlocked,
-			"transfers_blocked":       account.TransfersBlocked,
-			"account_blocked":         account.AccountBlocked,
-			"created_at":              account.CreatedAt,
-			"trade_suspended_by_user": account.TradeSuspendedByUser,
-			"multiplier":              account.Multiplier,
-			"shorting_enabled":        account.ShortingEnabled,
-			"equity":                  account.Equity,
-			"last_equity":             account.LastEquity,
-			"long_market_value":       account.LongMarketValue,
-			"short_market_value":      account.ShortMarketValue,
-			"initial_margin":          account.InitialMargin,
-			"maintenance_margin":      account.MaintenanceMargin,
-			"last_maintenance_margin": account.LastMaintenanceMargin,
-			"sma":                     account.SMA,
-			"daytrade_count":          account.DaytradeCount,
+		return &models.Account{
+			ID:                account.ID,
+			Currency:          account.Currency,
+			BuyingPower:       account.BuyingPower,
+			Cash:              account.Cash,
+			PortfolioValue:    account.PortfolioValue,
+			Equity:            account.Equity,
+			LongMarketValue:   account.LongMarketValue,
+			ShortMarketValue:  account.ShortMarketValue,
+			InitialMargin:     account.InitialMargin,
+			MaintenanceMargin: account.MaintenanceMargin,
+			TradingBlocked:    account.TradingBlocked,
+			AccountBlocked:    account.AccountBlocked,
+			ShortingEnabled:   account.ShortingEnabled,
 		}, nil
 	})
 }

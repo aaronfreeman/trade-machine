@@ -39,7 +39,7 @@ type AlpacaServiceInterface interface {
 	GetLatestTrade(ctx context.Context, symbol string) (*models.Quote, error)
 
 	// Account operations
-	GetAccount(ctx context.Context) (map[string]interface{}, error)
+	GetAccount(ctx context.Context) (*models.Account, error)
 
 	// Trading operations
 	PlaceOrder(ctx context.Context, symbol string, qty decimal.Decimal, side models.TradeSide, orderType string) (string, error)

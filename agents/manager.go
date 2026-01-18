@@ -21,19 +21,39 @@ type PortfolioManagerRepository interface {
 	CreateRecommendation(ctx context.Context, rec *models.Recommendation) error
 }
 
+// AccountProvider provides account and position information for position sizing
+type AccountProvider interface {
+	GetAccount(ctx context.Context) (*models.Account, error)
+	GetPosition(ctx context.Context, symbol string) (*models.Position, error)
+	GetQuote(ctx context.Context, symbol string) (*models.Quote, error)
+}
+
 // PortfolioManager orchestrates all agents and generates recommendations
 type PortfolioManager struct {
-	agents []Agent
-	repo   PortfolioManagerRepository
-	cfg    *config.Config
+	agents          []Agent
+	repo            PortfolioManagerRepository
+	cfg             *config.Config
+	positionSizer   PositionSizer
+	accountProvider AccountProvider
 }
 
 // NewPortfolioManager creates a new PortfolioManager
-func NewPortfolioManager(repo PortfolioManagerRepository, cfg *config.Config) *PortfolioManager {
+func NewPortfolioManager(repo PortfolioManagerRepository, cfg *config.Config, accountProvider AccountProvider) *PortfolioManager {
+	// Create position sizer from config
+	sizingConfig := PositionSizingConfig{
+		MaxPositionPercent:   cfg.PositionSizing.MaxPositionPercent,
+		RiskPercent:          cfg.PositionSizing.RiskPercent,
+		MinShares:            cfg.PositionSizing.MinShares,
+		MaxShares:            cfg.PositionSizing.MaxShares,
+		UseConfidenceScaling: cfg.PositionSizing.UseConfidenceScaling,
+	}
+
 	return &PortfolioManager{
-		agents: make([]Agent, 0),
-		repo:   repo,
-		cfg:    cfg,
+		agents:          make([]Agent, 0),
+		repo:            repo,
+		cfg:             cfg,
+		positionSizer:   NewDefaultPositionSizer(sizingConfig),
+		accountProvider: accountProvider,
 	}
 }
 
@@ -97,7 +117,7 @@ func (m *PortfolioManager) AnalyzeSymbol(ctx context.Context, symbol string) (*m
 	}
 
 	// Synthesize recommendation
-	rec := m.synthesizeRecommendation(symbol, validAnalyses)
+	rec := m.synthesizeRecommendation(ctx, symbol, validAnalyses)
 
 	// Save to database
 	if err := m.repo.CreateRecommendation(ctx, rec); err != nil {
@@ -108,7 +128,7 @@ func (m *PortfolioManager) AnalyzeSymbol(ctx context.Context, symbol string) (*m
 }
 
 // synthesizeRecommendation combines agent analyses into a recommendation
-func (m *PortfolioManager) synthesizeRecommendation(symbol string, analyses []*Analysis) *models.Recommendation {
+func (m *PortfolioManager) synthesizeRecommendation(ctx context.Context, symbol string, analyses []*Analysis) *models.Recommendation {
 	var fundamentalScore, sentimentScore, technicalScore float64
 	var totalWeight float64 = 0
 	var weightedScore float64 = 0
@@ -176,14 +196,53 @@ func (m *PortfolioManager) synthesizeRecommendation(symbol string, analyses []*A
 		CreatedAt:        time.Now(),
 	}
 
-	// Suggest quantity based on confidence (placeholder logic)
-	if action == models.RecommendationActionBuy {
-		rec.Quantity = decimal.NewFromInt(10) // Default to 10 shares
-	} else if action == models.RecommendationActionSell {
-		rec.Quantity = decimal.NewFromInt(10)
-	}
+	// Calculate position size using PositionSizer
+	rec.Quantity = m.calculatePositionSize(ctx, symbol, action, avgConfidence)
 
 	return rec
+}
+
+// calculatePositionSize uses the PositionSizer to determine trade quantity
+func (m *PortfolioManager) calculatePositionSize(ctx context.Context, symbol string, action models.RecommendationAction, confidence float64) decimal.Decimal {
+	// Get account information
+	account, err := m.accountProvider.GetAccount(ctx)
+	if err != nil {
+		observability.Warn("failed to get account for position sizing, using minimum",
+			"symbol", symbol,
+			"error", err)
+		return decimal.NewFromInt(m.cfg.PositionSizing.MinShares)
+	}
+
+	// Get current price
+	quote, err := m.accountProvider.GetQuote(ctx, symbol)
+	if err != nil {
+		observability.Warn("failed to get quote for position sizing, using minimum",
+			"symbol", symbol,
+			"error", err)
+		return decimal.NewFromInt(m.cfg.PositionSizing.MinShares)
+	}
+
+	currentPrice := quote.Last
+	if currentPrice.IsZero() {
+		// Fall back to bid/ask midpoint
+		if !quote.Bid.IsZero() && !quote.Ask.IsZero() {
+			currentPrice = quote.Bid.Add(quote.Ask).Div(decimal.NewFromInt(2))
+		}
+	}
+
+	// Get existing position (may be nil)
+	existingPosition, _ := m.accountProvider.GetPosition(ctx, symbol)
+
+	// Calculate quantity using position sizer
+	quantity, err := m.positionSizer.CalculateQuantity(ctx, account, currentPrice, action, confidence, existingPosition)
+	if err != nil {
+		observability.Warn("position sizer error, using minimum",
+			"symbol", symbol,
+			"error", err)
+		return decimal.NewFromInt(m.cfg.PositionSizing.MinShares)
+	}
+
+	return quantity
 }
 
 // Name returns the manager name

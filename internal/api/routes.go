@@ -8,6 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // NewRouter creates and configures a Chi router with all routes
@@ -20,10 +21,14 @@ func NewRouter(h *Handler, cfg *config.Config) http.Handler {
 	r.Use(middleware.Recoverer)
 	r.Use(middleware.Timeout(time.Duration(cfg.Agent.TimeoutSeconds) * time.Second))
 	r.Use(CORSMiddleware(cfg.HTTP.CORSAllowedOrigins))
+	r.Use(MetricsMiddleware)
 
 	// Root routes
 	r.Get("/", h.HandleIndex)
 	r.Get("/index.html", h.HandleIndex)
+
+	// Metrics endpoint for Prometheus
+	r.Handle("/metrics", promhttp.Handler())
 
 	// API routes
 	r.Route("/api", func(r chi.Router) {

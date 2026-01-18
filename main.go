@@ -23,6 +23,9 @@ func main() {
 	production := os.Getenv("ENVIRONMENT") == "production"
 	observability.InitLogger(production)
 
+	// Initialize Prometheus metrics
+	observability.InitMetrics()
+
 	// Load environment variables
 	if err := godotenv.Load(); err != nil {
 		observability.Info("no .env file found, using environment variables")

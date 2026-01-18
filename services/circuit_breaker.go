@@ -73,6 +73,13 @@ func (r *CircuitBreakerRegistry) GetBreaker(name string) *gobreaker.CircuitBreak
 				"breaker", name,
 				"from", from.String(),
 				"to", to.String())
+
+			// Record metrics for circuit breaker state changes
+			metrics := observability.GetMetrics()
+			metrics.SetCircuitBreakerState(name, stateToInt(to))
+			if to == gobreaker.StateOpen {
+				metrics.RecordCircuitBreakerTrip(name)
+			}
 		},
 	}
 
@@ -183,3 +190,18 @@ const (
 	BreakerAlpaca       = "alpaca"
 	BreakerBedrock      = "bedrock"
 )
+
+// stateToInt converts a circuit breaker state to an integer for metrics
+// 0=closed, 1=half-open, 2=open
+func stateToInt(state gobreaker.State) int {
+	switch state {
+	case gobreaker.StateClosed:
+		return 0
+	case gobreaker.StateHalfOpen:
+		return 1
+	case gobreaker.StateOpen:
+		return 2
+	default:
+		return -1
+	}
+}

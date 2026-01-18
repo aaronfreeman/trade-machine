@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"trade-machine/models"
+	"trade-machine/observability"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -13,6 +14,10 @@ import (
 
 // GetRecommendations returns recommendations filtered by status
 func (r *Repository) GetRecommendations(ctx context.Context, status models.RecommendationStatus, limit int) ([]models.Recommendation, error) {
+	metrics := observability.GetMetrics()
+	timer := metrics.NewTimer()
+	defer timer.ObserveDB("select", "recommendations")
+
 	if limit <= 0 {
 		limit = 50
 	}
@@ -42,6 +47,7 @@ func (r *Repository) GetRecommendations(ctx context.Context, status models.Recom
 	}
 
 	if err != nil {
+		metrics.RecordDBError("select", "recommendations")
 		return nil, fmt.Errorf("failed to query recommendations: %w", err)
 	}
 	defer rows.Close()
@@ -53,6 +59,7 @@ func (r *Repository) GetRecommendations(ctx context.Context, status models.Recom
 			&rec.FundamentalScore, &rec.SentimentScore, &rec.TechnicalScore,
 			&rec.Status, &rec.ApprovedAt, &rec.RejectedAt, &rec.ExecutedTradeID, &rec.CreatedAt)
 		if err != nil {
+			metrics.RecordDBError("select", "recommendations")
 			return nil, fmt.Errorf("failed to scan recommendation: %w", err)
 		}
 		recs = append(recs, rec)
@@ -85,6 +92,10 @@ func (r *Repository) GetRecommendation(ctx context.Context, id uuid.UUID) (*mode
 
 // CreateRecommendation creates a new recommendation
 func (r *Repository) CreateRecommendation(ctx context.Context, rec *models.Recommendation) error {
+	metrics := observability.GetMetrics()
+	timer := metrics.NewTimer()
+	defer timer.ObserveDB("insert", "recommendations")
+
 	_, err := r.pool.Exec(ctx, `
 		INSERT INTO recommendations (id, symbol, action, quantity, target_price, confidence, reasoning,
 			fundamental_score, sentiment_score, technical_score, status, created_at)
@@ -93,6 +104,7 @@ func (r *Repository) CreateRecommendation(ctx context.Context, rec *models.Recom
 		rec.FundamentalScore, rec.SentimentScore, rec.TechnicalScore, rec.Status, rec.CreatedAt)
 
 	if err != nil {
+		metrics.RecordDBError("insert", "recommendations")
 		return fmt.Errorf("failed to create recommendation: %w", err)
 	}
 

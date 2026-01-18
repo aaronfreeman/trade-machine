@@ -52,6 +52,13 @@ type RepositoryInterface interface {
 	InvalidateCache(ctx context.Context, symbol, dataType string) error
 	InvalidateAllCacheForSymbol(ctx context.Context, symbol string) error
 	CleanExpiredCache(ctx context.Context) (int64, error)
+
+	// Screener runs
+	CreateScreenerRun(ctx context.Context, run *models.ScreenerRun) error
+	UpdateScreenerRun(ctx context.Context, run *models.ScreenerRun) error
+	GetScreenerRun(ctx context.Context, id uuid.UUID) (*models.ScreenerRun, error)
+	GetLatestScreenerRun(ctx context.Context) (*models.ScreenerRun, error)
+	GetScreenerRunHistory(ctx context.Context, limit int) ([]models.ScreenerRun, error)
 }
 
 // Compile-time interface verification

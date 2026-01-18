@@ -207,3 +207,64 @@ func TestNewsAnalyst_Analyze_InvalidJSON(t *testing.T) {
 		t.Errorf("Confidence = %v, want 50 for invalid JSON", analysis.Confidence)
 	}
 }
+
+func TestNewsAnalyst_IsAvailable_Success(t *testing.T) {
+	mockNewsAPI := &mockNewsAPIService{
+		articles: []models.NewsArticle{
+			{Title: "Test", Description: "Test", Source: "Test"},
+		},
+	}
+
+	analyst := NewNewsAnalyst(nil, mockNewsAPI)
+	ctx := context.Background()
+
+	if !analyst.IsAvailable(ctx) {
+		t.Error("IsAvailable should return true when service is healthy")
+	}
+}
+
+func TestNewsAnalyst_IsAvailable_Failure(t *testing.T) {
+	mockNewsAPI := &mockNewsAPIService{
+		err: errors.New("service unavailable"),
+	}
+
+	analyst := NewNewsAnalyst(nil, mockNewsAPI)
+	ctx := context.Background()
+
+	if analyst.IsAvailable(ctx) {
+		t.Error("IsAvailable should return false when service fails")
+	}
+}
+
+func TestNewsAnalyst_GetMetadata(t *testing.T) {
+	analyst := &NewsAnalyst{}
+	metadata := analyst.GetMetadata()
+
+	if metadata.Description == "" {
+		t.Error("Description should not be empty")
+	}
+	if metadata.Version == "" {
+		t.Error("Version should not be empty")
+	}
+	if len(metadata.RequiredServices) == 0 {
+		t.Error("RequiredServices should not be empty")
+	}
+
+	// Check that required services include both bedrock and newsapi
+	hasNewsAPI := false
+	hasBedrock := false
+	for _, svc := range metadata.RequiredServices {
+		if svc == "newsapi" {
+			hasNewsAPI = true
+		}
+		if svc == "bedrock" {
+			hasBedrock = true
+		}
+	}
+	if !hasNewsAPI {
+		t.Error("RequiredServices should include newsapi")
+	}
+	if !hasBedrock {
+		t.Error("RequiredServices should include bedrock")
+	}
+}

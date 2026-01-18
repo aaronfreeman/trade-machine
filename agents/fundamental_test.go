@@ -212,3 +212,65 @@ func TestFundamentalAnalyst_Analyze_ScoreNormalization(t *testing.T) {
 		t.Errorf("Confidence = %v, should be normalized to <= 100", analysis.Confidence)
 	}
 }
+
+func TestFundamentalAnalyst_IsAvailable_Success(t *testing.T) {
+	mockAlphaVantage := &mockAlphaVantageService{
+		fundamentals: &models.Fundamentals{
+			Symbol:  "AAPL",
+			PERatio: 25.5,
+		},
+	}
+
+	analyst := NewFundamentalAnalyst(nil, mockAlphaVantage)
+	ctx := context.Background()
+
+	if !analyst.IsAvailable(ctx) {
+		t.Error("IsAvailable should return true when service is healthy")
+	}
+}
+
+func TestFundamentalAnalyst_IsAvailable_Failure(t *testing.T) {
+	mockAlphaVantage := &mockAlphaVantageService{
+		err: errors.New("service unavailable"),
+	}
+
+	analyst := NewFundamentalAnalyst(nil, mockAlphaVantage)
+	ctx := context.Background()
+
+	if analyst.IsAvailable(ctx) {
+		t.Error("IsAvailable should return false when service fails")
+	}
+}
+
+func TestFundamentalAnalyst_GetMetadata(t *testing.T) {
+	analyst := &FundamentalAnalyst{}
+	metadata := analyst.GetMetadata()
+
+	if metadata.Description == "" {
+		t.Error("Description should not be empty")
+	}
+	if metadata.Version == "" {
+		t.Error("Version should not be empty")
+	}
+	if len(metadata.RequiredServices) == 0 {
+		t.Error("RequiredServices should not be empty")
+	}
+
+	// Check that required services include both bedrock and alpha_vantage
+	hasAlphaVantage := false
+	hasBedrock := false
+	for _, svc := range metadata.RequiredServices {
+		if svc == "alpha_vantage" {
+			hasAlphaVantage = true
+		}
+		if svc == "bedrock" {
+			hasBedrock = true
+		}
+	}
+	if !hasAlphaVantage {
+		t.Error("RequiredServices should include alpha_vantage")
+	}
+	if !hasBedrock {
+		t.Error("RequiredServices should include bedrock")
+	}
+}

@@ -142,3 +142,24 @@ func TestRecommendation_Fields(t *testing.T) {
 		t.Errorf("Average score = %v, want %v", actualAvg, expectedAvg)
 	}
 }
+
+func TestAgentMetadata_Fields(t *testing.T) {
+	metadata := AgentMetadata{
+		Description:      "Test agent for unit testing",
+		Version:          "1.0.0",
+		RequiredServices: []string{"service1", "service2"},
+	}
+
+	if metadata.Description != "Test agent for unit testing" {
+		t.Errorf("Description = %v, want 'Test agent for unit testing'", metadata.Description)
+	}
+	if metadata.Version != "1.0.0" {
+		t.Errorf("Version = %v, want '1.0.0'", metadata.Version)
+	}
+	if len(metadata.RequiredServices) != 2 {
+		t.Errorf("RequiredServices length = %v, want 2", len(metadata.RequiredServices))
+	}
+	if metadata.RequiredServices[0] != "service1" {
+		t.Errorf("RequiredServices[0] = %v, want 'service1'", metadata.RequiredServices[0])
+	}
+}

@@ -291,3 +291,21 @@ func (a *TechnicalAnalyst) Name() string {
 func (a *TechnicalAnalyst) Type() models.AgentType {
 	return models.AgentTypeTechnical
 }
+
+// IsAvailable checks if the agent's dependencies are healthy
+func (a *TechnicalAnalyst) IsAvailable(ctx context.Context) bool {
+	// Test Alpaca connectivity with a simple bars request
+	end := time.Now()
+	start := end.AddDate(0, 0, -1)
+	_, err := a.alpaca.GetBars(ctx, "AAPL", start, end, marketdata.OneDay)
+	return err == nil
+}
+
+// GetMetadata returns information about this agent's capabilities
+func (a *TechnicalAnalyst) GetMetadata() AgentMetadata {
+	return AgentMetadata{
+		Description:      "Analyzes price action and technical indicators including RSI, MACD, and moving averages",
+		Version:          "1.0.0",
+		RequiredServices: []string{"bedrock", "alpaca"},
+	}
+}

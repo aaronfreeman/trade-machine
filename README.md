@@ -1,3 +1,7 @@
+> [!WARNING]
+> This project is a vibe coding experiment. All the code and documentation in the repo has been planned, written, and reviewed by AI with a little human
+> intervention only when necessary.
+> 
 # Trade Machine
 
 An AI-powered desktop application for intelligent stock trading analysis and execution. Trade Machine combines multi-agent AI analysis with paper trading capabilities to help users make informed investment decisions.

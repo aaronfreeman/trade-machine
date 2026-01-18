@@ -26,6 +26,9 @@ type Config struct {
 	// Position sizing configuration
 	PositionSizing PositionSizingConfig
 
+	// Screener configuration
+	Screener ScreenerConfig
+
 	// HTTP configuration
 	HTTP HTTPConfig
 }
@@ -88,6 +91,17 @@ type PositionSizingConfig struct {
 	UseConfidenceScaling bool
 }
 
+// ScreenerConfig holds value screener configuration
+type ScreenerConfig struct {
+	MarketCapMin       int64   // Minimum market cap filter (default: 1B)
+	PERatioMax         float64 // Maximum P/E ratio filter (default: 15)
+	PBRatioMax         float64 // Maximum P/B ratio filter (default: 1.5)
+	PreFilterLimit     int     // Number of candidates to pre-filter (default: 15)
+	TopPicksCount      int     // Number of top picks to return (default: 3)
+	AnalysisTimeoutSec int     // Timeout for full analysis in seconds (default: 120)
+	MaxConcurrent      int     // Max concurrent analyses (default: 5)
+}
+
 // HTTPConfig holds HTTP server configuration
 type HTTPConfig struct {
 	CORSAllowedOrigins string
@@ -137,6 +151,15 @@ func Load() (*Config, error) {
 			MinShares:            int64(getEnvInt("POSITION_MIN_SHARES", 1)),
 			MaxShares:            int64(getEnvInt("POSITION_MAX_SHARES", 0)),
 			UseConfidenceScaling: getEnvBool("POSITION_USE_CONFIDENCE_SCALING", true),
+		},
+		Screener: ScreenerConfig{
+			MarketCapMin:       int64(getEnvInt("SCREENER_MARKET_CAP_MIN", 1_000_000_000)),
+			PERatioMax:         getEnvFloatUnbounded("SCREENER_PE_RATIO_MAX", 15.0),
+			PBRatioMax:         getEnvFloatUnbounded("SCREENER_PB_RATIO_MAX", 1.5),
+			PreFilterLimit:     getEnvInt("SCREENER_PREFILTER_LIMIT", 15),
+			TopPicksCount:      getEnvInt("SCREENER_TOP_PICKS_COUNT", 3),
+			AnalysisTimeoutSec: getEnvInt("SCREENER_ANALYSIS_TIMEOUT_SEC", 120),
+			MaxConcurrent:      getEnvInt("SCREENER_MAX_CONCURRENT", 5),
 		},
 		HTTP: HTTPConfig{
 			CORSAllowedOrigins: getEnvString("CORS_ALLOWED_ORIGINS", "*"),
@@ -319,6 +342,15 @@ func NewTestConfig() *Config {
 			MinShares:            1,
 			MaxShares:            0,
 			UseConfidenceScaling: true,
+		},
+		Screener: ScreenerConfig{
+			MarketCapMin:       1_000_000_000,
+			PERatioMax:         15.0,
+			PBRatioMax:         1.5,
+			PreFilterLimit:     15,
+			TopPicksCount:      3,
+			AnalysisTimeoutSec: 120,
+			MaxConcurrent:      5,
 		},
 		HTTP: HTTPConfig{
 			CORSAllowedOrigins: "*",

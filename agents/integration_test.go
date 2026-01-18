@@ -13,10 +13,11 @@ import (
 )
 
 type mockAgent struct {
-	name      string
-	agentType models.AgentType
-	analysis  *Analysis
-	err       error
+	name        string
+	agentType   models.AgentType
+	analysis    *Analysis
+	err         error
+	isAvailable bool
 }
 
 func (m *mockAgent) Analyze(ctx context.Context, symbol string) (*Analysis, error) {
@@ -32,6 +33,18 @@ func (m *mockAgent) Name() string {
 
 func (m *mockAgent) Type() models.AgentType {
 	return m.agentType
+}
+
+func (m *mockAgent) IsAvailable(ctx context.Context) bool {
+	return m.isAvailable
+}
+
+func (m *mockAgent) GetMetadata() AgentMetadata {
+	return AgentMetadata{
+		Description:      "Mock agent for testing",
+		Version:          "1.0.0",
+		RequiredServices: []string{"mock"},
+	}
 }
 
 // integrationMockAccountProvider for integration tests
@@ -73,8 +86,9 @@ func TestPortfolioManager_AnalyzeSymbol_Integration(t *testing.T) {
 	manager := NewPortfolioManager(repo, config.NewTestConfig(), &integrationMockAccountProvider{})
 
 	fundamental := &mockAgent{
-		name:      "Mock Fundamental",
-		agentType: models.AgentTypeFundamental,
+		name:        "Mock Fundamental",
+		agentType:   models.AgentTypeFundamental,
+		isAvailable: true,
 		analysis: &Analysis{
 			Symbol:     "AAPL",
 			AgentType:  models.AgentTypeFundamental,
@@ -87,8 +101,9 @@ func TestPortfolioManager_AnalyzeSymbol_Integration(t *testing.T) {
 	}
 
 	technical := &mockAgent{
-		name:      "Mock Technical",
-		agentType: models.AgentTypeTechnical,
+		name:        "Mock Technical",
+		agentType:   models.AgentTypeTechnical,
+		isAvailable: true,
 		analysis: &Analysis{
 			Symbol:     "AAPL",
 			AgentType:  models.AgentTypeTechnical,
@@ -101,8 +116,9 @@ func TestPortfolioManager_AnalyzeSymbol_Integration(t *testing.T) {
 	}
 
 	news := &mockAgent{
-		name:      "Mock News",
-		agentType: models.AgentTypeNews,
+		name:        "Mock News",
+		agentType:   models.AgentTypeNews,
+		isAvailable: true,
 		analysis: &Analysis{
 			Symbol:     "AAPL",
 			AgentType:  models.AgentTypeNews,
@@ -192,8 +208,9 @@ func TestPortfolioManager_AnalyzeSymbol_PartialFailure(t *testing.T) {
 	manager := NewPortfolioManager(repo, config.NewTestConfig(), &integrationMockAccountProvider{})
 
 	fundamental := &mockAgent{
-		name:      "Mock Fundamental",
-		agentType: models.AgentTypeFundamental,
+		name:        "Mock Fundamental",
+		agentType:   models.AgentTypeFundamental,
+		isAvailable: true,
 		analysis: &Analysis{
 			Symbol:     "AAPL",
 			AgentType:  models.AgentTypeFundamental,
@@ -206,9 +223,10 @@ func TestPortfolioManager_AnalyzeSymbol_PartialFailure(t *testing.T) {
 	}
 
 	failingAgent := &mockAgent{
-		name:      "Failing Agent",
-		agentType: models.AgentTypeTechnical,
-		err:       context.DeadlineExceeded,
+		name:        "Failing Agent",
+		agentType:   models.AgentTypeTechnical,
+		isAvailable: true,
+		err:         context.DeadlineExceeded,
 	}
 
 	manager.RegisterAgent(fundamental)
@@ -236,9 +254,10 @@ func TestPortfolioManager_AnalyzeSymbol_AllFail(t *testing.T) {
 	manager := NewPortfolioManager(repo, config.NewTestConfig(), &integrationMockAccountProvider{})
 
 	failingAgent := &mockAgent{
-		name:      "Failing Agent",
-		agentType: models.AgentTypeFundamental,
-		err:       context.DeadlineExceeded,
+		name:        "Failing Agent",
+		agentType:   models.AgentTypeFundamental,
+		isAvailable: true,
+		err:         context.DeadlineExceeded,
 	}
 
 	manager.RegisterAgent(failingAgent)
@@ -246,5 +265,90 @@ func TestPortfolioManager_AnalyzeSymbol_AllFail(t *testing.T) {
 	_, err = manager.AnalyzeSymbol(ctx, "AAPL")
 	if err == nil {
 		t.Error("expected error when all agents fail")
+	}
+}
+
+func TestPortfolioManager_AnalyzeSymbol_UnavailableAgents(t *testing.T) {
+	ctx := context.Background()
+	connString := "host=localhost port=5432 user=trademachine password=trademachine_dev dbname=trademachine sslmode=disable"
+	repo, err := repository.NewRepository(ctx, connString)
+	if err != nil {
+		t.Skip("database not available for integration test")
+	}
+	defer repo.Close()
+
+	manager := NewPortfolioManager(repo, config.NewTestConfig(), &integrationMockAccountProvider{})
+
+	availableAgent := &mockAgent{
+		name:        "Available Agent",
+		agentType:   models.AgentTypeFundamental,
+		isAvailable: true,
+		analysis: &Analysis{
+			Symbol:     "AAPL",
+			AgentType:  models.AgentTypeFundamental,
+			Score:      50,
+			Confidence: 80,
+			Reasoning:  "Strong fundamentals",
+			Data:       map[string]interface{}{},
+			Timestamp:  time.Now(),
+		},
+	}
+
+	unavailableAgent := &mockAgent{
+		name:        "Unavailable Agent",
+		agentType:   models.AgentTypeTechnical,
+		isAvailable: false,
+		analysis: &Analysis{
+			Symbol:     "AAPL",
+			AgentType:  models.AgentTypeTechnical,
+			Score:      100,
+			Confidence: 100,
+			Reasoning:  "Should not be used",
+			Data:       map[string]interface{}{},
+			Timestamp:  time.Now(),
+		},
+	}
+
+	manager.RegisterAgent(availableAgent)
+	manager.RegisterAgent(unavailableAgent)
+
+	rec, err := manager.AnalyzeSymbol(ctx, "AAPL")
+	if err != nil {
+		t.Fatalf("expected no error, got: %v", err)
+	}
+
+	// Should only use the available agent
+	if rec.FundamentalScore != 50 {
+		t.Errorf("expected fundamental score 50, got %f", rec.FundamentalScore)
+	}
+
+	// Technical score should be 0 since that agent was unavailable
+	if rec.TechnicalScore != 0 {
+		t.Errorf("expected technical score 0 (unavailable agent), got %f", rec.TechnicalScore)
+	}
+}
+
+func TestPortfolioManager_AnalyzeSymbol_AllUnavailable(t *testing.T) {
+	ctx := context.Background()
+	connString := "host=localhost port=5432 user=trademachine password=trademachine_dev dbname=trademachine sslmode=disable"
+	repo, err := repository.NewRepository(ctx, connString)
+	if err != nil {
+		t.Skip("database not available for integration test")
+	}
+	defer repo.Close()
+
+	manager := NewPortfolioManager(repo, config.NewTestConfig(), &integrationMockAccountProvider{})
+
+	unavailableAgent := &mockAgent{
+		name:        "Unavailable Agent",
+		agentType:   models.AgentTypeFundamental,
+		isAvailable: false,
+	}
+
+	manager.RegisterAgent(unavailableAgent)
+
+	_, err = manager.AnalyzeSymbol(ctx, "AAPL")
+	if err == nil {
+		t.Error("expected error when all agents are unavailable")
 	}
 }

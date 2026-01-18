@@ -62,7 +62,7 @@ func TestPortfolioManager_RegisterAgent(t *testing.T) {
 	}
 
 	// Register a mock agent
-	mockAgent := &testMockAgent{name: "Test Agent", agentType: models.AgentTypeFundamental}
+	mockAgent := &testMockAgent{name: "Test Agent", agentType: models.AgentTypeFundamental, isAvailable: true}
 	manager.RegisterAgent(mockAgent)
 
 	if len(manager.GetAgents()) != 1 {
@@ -70,7 +70,7 @@ func TestPortfolioManager_RegisterAgent(t *testing.T) {
 	}
 
 	// Register another
-	mockAgent2 := &testMockAgent{name: "Test Agent 2", agentType: models.AgentTypeNews}
+	mockAgent2 := &testMockAgent{name: "Test Agent 2", agentType: models.AgentTypeNews, isAvailable: true}
 	manager.RegisterAgent(mockAgent2)
 
 	if len(manager.GetAgents()) != 2 {
@@ -227,8 +227,9 @@ func TestPortfolioManager_GetAgents(t *testing.T) {
 
 // Mock agent for testing
 type testMockAgent struct {
-	name      string
-	agentType models.AgentType
+	name        string
+	agentType   models.AgentType
+	isAvailable bool
 }
 
 func (m *testMockAgent) Analyze(ctx context.Context, symbol string) (*Analysis, error) {
@@ -247,4 +248,16 @@ func (m *testMockAgent) Name() string {
 
 func (m *testMockAgent) Type() models.AgentType {
 	return m.agentType
+}
+
+func (m *testMockAgent) IsAvailable(ctx context.Context) bool {
+	return m.isAvailable
+}
+
+func (m *testMockAgent) GetMetadata() AgentMetadata {
+	return AgentMetadata{
+		Description:      "Mock agent for testing",
+		Version:          "1.0.0",
+		RequiredServices: []string{"mock"},
+	}
 }

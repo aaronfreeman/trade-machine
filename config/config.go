@@ -18,6 +18,7 @@ type Config struct {
 	Alpaca       AlpacaConfig
 	AlphaVantage AlphaVantageConfig
 	NewsAPI      NewsAPIConfig
+	FMP          FMPConfig
 
 	// Agent configuration
 	Agent AgentConfig
@@ -56,6 +57,11 @@ type AlphaVantageConfig struct {
 
 // NewsAPIConfig holds NewsAPI configuration
 type NewsAPIConfig struct {
+	APIKey string
+}
+
+// FMPConfig holds Financial Modeling Prep API configuration
+type FMPConfig struct {
 	APIKey string
 }
 
@@ -109,6 +115,9 @@ func Load() (*Config, error) {
 		},
 		NewsAPI: NewsAPIConfig{
 			APIKey: os.Getenv("NEWS_API_KEY"),
+		},
+		FMP: FMPConfig{
+			APIKey: os.Getenv("FMP_API_KEY"),
 		},
 		Agent: AgentConfig{
 			TimeoutSeconds:        getEnvInt("AGENT_TIMEOUT_SECONDS", 30),
@@ -203,6 +212,11 @@ func (c *Config) HasNewsAPI() bool {
 	return c.NewsAPI.APIKey != ""
 }
 
+// HasFMP returns true if Financial Modeling Prep configuration is available
+func (c *Config) HasFMP() bool {
+	return c.FMP.APIKey != ""
+}
+
 // getEnvString gets an environment variable with a default value
 func getEnvString(key, defaultValue string) string {
 	if val := os.Getenv(key); val != "" {
@@ -282,6 +296,9 @@ func NewTestConfig() *Config {
 			APIKey: "",
 		},
 		NewsAPI: NewsAPIConfig{
+			APIKey: "",
+		},
+		FMP: FMPConfig{
 			APIKey: "",
 		},
 		Agent: AgentConfig{

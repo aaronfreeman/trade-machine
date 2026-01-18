@@ -189,6 +189,7 @@ const (
 	BreakerNewsAPI      = "newsapi"
 	BreakerAlpaca       = "alpaca"
 	BreakerBedrock      = "bedrock"
+	BreakerFMP          = "fmp"
 )
 
 // stateToInt converts a circuit breaker state to an integer for metrics

@@ -1,0 +1,151 @@
+package partials
+
+import (
+	"fmt"
+	"time"
+	"trade-machine/models"
+	"trade-machine/templates/components"
+)
+
+// TodaysPicks renders the main Today's Picks section
+templ TodaysPicks(run *models.ScreenerRun, picks []models.ScreenerCandidate) {
+	<div id="picks-container" class="fade-in">
+		<!-- Header -->
+		<div class="d-flex justify-content-between align-items-center mb-4">
+			<div>
+				<h3 class="mb-1">
+					<i class="bi bi-gem me-2" style="color: var(--color-buy);"></i>
+					Today's Value Picks
+				</h3>
+				if run != nil && run.IsCompleted() {
+					<small class="text-muted">Last updated: { formatRunTime(run.RunAt) }</small>
+				} else {
+					<small class="text-muted">Find undervalued stocks with strong fundamentals</small>
+				}
+			</div>
+			<button
+				class="btn btn-primary"
+				hx-post="/api/screener/run"
+				hx-target="#picks-container"
+				hx-swap="innerHTML"
+				hx-indicator="#screener-loading"
+			>
+				<i class="bi bi-search me-2"></i>
+				Find Value Stocks
+			</button>
+		</div>
+
+		<!-- Loading Indicator -->
+		<div id="screener-loading" class="htmx-indicator text-center py-5">
+			@ScreenerProgress()
+		</div>
+
+		<!-- Content -->
+		if run == nil {
+			@TodaysPicksEmpty()
+		} else if run.Status == models.ScreenerRunStatusRunning {
+			@ScreenerProgress()
+		} else if run.Status == models.ScreenerRunStatusFailed {
+			@TodaysPicksError(run.Error)
+		} else if len(picks) == 0 {
+			@TodaysPicksNoPicks()
+		} else {
+			@TodaysPicksResults(run, picks)
+		}
+	</div>
+}
+
+// TodaysPicksEmpty renders the empty state when no screener run exists
+templ TodaysPicksEmpty() {
+	<div class="card">
+		<div class="card-body text-center py-5">
+			<i class="bi bi-gem" style="font-size: 4rem; color: var(--text-muted); opacity: 0.5;"></i>
+			<h4 class="mt-4 mb-2">No Picks Yet</h4>
+			<p class="text-muted mb-4">Run the value screener to discover undervalued stocks with strong fundamentals.</p>
+			<button
+				class="btn btn-lg btn-primary"
+				hx-post="/api/screener/run"
+				hx-target="#picks-container"
+				hx-swap="innerHTML"
+				hx-indicator="#screener-loading"
+			>
+				<i class="bi bi-search me-2"></i>
+				Find Value Stocks
+			</button>
+		</div>
+	</div>
+}
+
+// TodaysPicksNoPicks renders when screener completed but found no matching picks
+templ TodaysPicksNoPicks() {
+	<div class="card">
+		<div class="card-body text-center py-5">
+			<i class="bi bi-search" style="font-size: 4rem; color: var(--text-muted); opacity: 0.5;"></i>
+			<h4 class="mt-4 mb-2">No Value Stocks Found</h4>
+			<p class="text-muted mb-4">The screener didn't find any stocks matching the value criteria. Try again later.</p>
+		</div>
+	</div>
+}
+
+// TodaysPicksError renders error state
+templ TodaysPicksError(errorMsg string) {
+	@components.ErrorState(errorMsg)
+}
+
+// TodaysPicksResults renders the picks when available
+templ TodaysPicksResults(run *models.ScreenerRun, picks []models.ScreenerCandidate) {
+	<!-- Top Picks Cards -->
+	<div class="row mb-4">
+		for i, pick := range picks {
+			<div class="col-md-4 mb-3">
+				@PickCard(pick, i+1)
+			</div>
+		}
+	</div>
+
+	<!-- Summary Stats -->
+	<div class="card">
+		<div class="card-body">
+			<div class="row text-center">
+				<div class="col-md-4">
+					<div class="text-muted small">Stocks Screened</div>
+					<div class="fs-5 fw-bold">{ fmt.Sprintf("%d", len(run.Candidates)) }</div>
+				</div>
+				<div class="col-md-4">
+					<div class="text-muted small">Pre-filtered</div>
+					<div class="fs-5 fw-bold">{ fmt.Sprintf("%d", countAnalyzed(run.Candidates)) }</div>
+				</div>
+				<div class="col-md-4">
+					<div class="text-muted small">Top Picks</div>
+					<div class="fs-5 fw-bold" style="color: var(--color-buy);">{ fmt.Sprintf("%d", len(picks)) }</div>
+				</div>
+			</div>
+			<div class="text-center mt-3">
+				<button
+					class="btn btn-sm btn-secondary"
+					hx-get={ fmt.Sprintf("/api/screener/runs/%s", run.ID) }
+					hx-target="#picks-container"
+					hx-swap="innerHTML"
+				>
+					<i class="bi bi-list-ul me-2"></i>
+					View All Candidates
+				</button>
+			</div>
+		</div>
+	</div>
+}
+
+// Helper functions
+func formatRunTime(t time.Time) string {
+	return t.Format("3:04 PM")
+}
+
+func countAnalyzed(candidates []models.ScreenerCandidate) int {
+	count := 0
+	for _, c := range candidates {
+		if c.Analyzed {
+			count++
+		}
+	}
+	return count
+}

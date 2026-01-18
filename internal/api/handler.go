@@ -392,7 +392,7 @@ type AnalyzeRequest struct {
 func (h *Handler) HandleRunScreener(w http.ResponseWriter, r *http.Request) {
 	if h.app.Screener() == nil {
 		if isHTMXRequest(r) {
-			h.htmlError(w, "Screener not configured", r)
+			h.htmlResponse(w, partials.ScreenerNotConfigured(), r)
 			return
 		}
 		h.jsonError(w, "Screener not configured", http.StatusServiceUnavailable)
@@ -410,7 +410,9 @@ func (h *Handler) HandleRunScreener(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if isHTMXRequest(r) {
-		h.htmlResponse(w, partials.ScreenerRunResult(run), r)
+		// Get the top picks from the run to display in TodaysPicks view
+		picks, _ := h.app.GetTopPicks()
+		h.htmlResponse(w, partials.TodaysPicks(run, picks), r)
 		return
 	}
 
@@ -538,10 +540,20 @@ func (h *Handler) HandleGetScreenerRun(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) HandleGetTopPicks(w http.ResponseWriter, r *http.Request) {
 	if h.app.Screener() == nil {
 		if isHTMXRequest(r) {
-			h.htmlError(w, "Screener not configured", r)
+			h.htmlResponse(w, partials.ScreenerNotConfigured(), r)
 			return
 		}
 		h.jsonError(w, "Screener not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	run, err := h.app.GetLatestScreenerRun()
+	if err != nil {
+		if isHTMXRequest(r) {
+			h.htmlError(w, err.Error(), r)
+			return
+		}
+		h.jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
@@ -556,7 +568,7 @@ func (h *Handler) HandleGetTopPicks(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if isHTMXRequest(r) {
-		h.htmlResponse(w, partials.TopPicksList(picks), r)
+		h.htmlResponse(w, partials.TodaysPicks(run, picks), r)
 		return
 	}
 

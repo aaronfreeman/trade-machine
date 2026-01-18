@@ -1,0 +1,155 @@
+package partials
+
+import (
+	"fmt"
+	"trade-machine/models"
+)
+
+// PickCard renders an individual pick card with ranking
+templ PickCard(pick models.ScreenerCandidate, rank int) {
+	<div class="card h-100 pick-card" style={ pickCardBorderStyle(pick) }>
+		<div class="card-body">
+			<!-- Rank Badge & Symbol -->
+			<div class="d-flex justify-content-between align-items-start mb-3">
+				<div>
+					<span class="badge bg-secondary me-2">#{ fmt.Sprintf("%d", rank) }</span>
+					<span class="fs-5 fw-bold">{ pick.Symbol }</span>
+				</div>
+				if pick.Score != nil {
+					<span class={ "badge", pickScoreBadgeClass(*pick.Score) }>
+						{ pickFormatScore(*pick.Score) }
+					</span>
+				}
+			</div>
+
+			<!-- Company Name -->
+			<p class="text-muted small mb-3 text-truncate" title={ pick.CompanyName }>
+				{ pick.CompanyName }
+			</p>
+
+			<!-- Key Metrics -->
+			<div class="row g-2 small">
+				<div class="col-6">
+					<div class="p-2 rounded text-center" style="background-color: var(--bg-tertiary);">
+						<div class="text-muted">P/E</div>
+						<div class="fw-bold">{ pickFormatRatio(pick.PERatio) }</div>
+					</div>
+				</div>
+				<div class="col-6">
+					<div class="p-2 rounded text-center" style="background-color: var(--bg-tertiary);">
+						<div class="text-muted">P/B</div>
+						<div class="fw-bold">{ pickFormatRatio(pick.PBRatio) }</div>
+					</div>
+				</div>
+				<div class="col-6">
+					<div class="p-2 rounded text-center" style="background-color: var(--bg-tertiary);">
+						<div class="text-muted">Div Yield</div>
+						<div class="fw-bold">{ pickFormatPercent(pick.DividendYield) }</div>
+					</div>
+				</div>
+				<div class="col-6">
+					<div class="p-2 rounded text-center" style="background-color: var(--bg-tertiary);">
+						<div class="text-muted">Price</div>
+						<div class="fw-bold">{ pickFormatPrice(pick.Price) }</div>
+					</div>
+				</div>
+			</div>
+
+			<!-- Confidence Bar -->
+			if pick.Confidence != nil {
+				<div class="mt-3">
+					<div class="d-flex justify-content-between small text-muted mb-1">
+						<span>Confidence</span>
+						<span>{ fmt.Sprintf("%.0f%%", *pick.Confidence) }</span>
+					</div>
+					<div class="progress" style="height: 4px; background-color: var(--bg-tertiary);">
+						<div
+							class="progress-bar"
+							role="progressbar"
+							style={ fmt.Sprintf("width: %.0f%%; background-color: %s;", *pick.Confidence, pickConfidenceColor(*pick.Confidence)) }
+						></div>
+					</div>
+				</div>
+			}
+
+			<!-- Actions -->
+			<div class="d-flex gap-2 mt-3">
+				<button
+					class="btn btn-sm btn-outline-primary flex-grow-1"
+					hx-post={ fmt.Sprintf("/api/analyze?symbol=%s", pick.Symbol) }
+					hx-target="#analyze-result"
+					hx-swap="innerHTML"
+					onclick="showSection('analyze'); return true;"
+				>
+					<i class="bi bi-eye me-1"></i>
+					Details
+				</button>
+			</div>
+		</div>
+	</div>
+}
+
+// Helper functions for PickCard
+func pickCardBorderStyle(pick models.ScreenerCandidate) string {
+	if pick.Score == nil {
+		return ""
+	}
+	if *pick.Score >= 50 {
+		return "border-left: 4px solid var(--color-buy) !important;"
+	}
+	if *pick.Score >= 25 {
+		return "border-left: 4px solid var(--accent-primary) !important;"
+	}
+	return ""
+}
+
+func pickScoreBadgeClass(score float64) string {
+	if score >= 50 {
+		return "bg-success"
+	}
+	if score >= 25 {
+		return "bg-primary"
+	}
+	if score <= -25 {
+		return "bg-danger"
+	}
+	return "bg-secondary"
+}
+
+func pickFormatScore(score float64) string {
+	if score > 0 {
+		return fmt.Sprintf("+%.1f", score)
+	}
+	return fmt.Sprintf("%.1f", score)
+}
+
+func pickFormatRatio(ratio float64) string {
+	if ratio == 0 {
+		return "-"
+	}
+	return fmt.Sprintf("%.2f", ratio)
+}
+
+func pickFormatPercent(pct float64) string {
+	if pct == 0 {
+		return "-"
+	}
+	return fmt.Sprintf("%.2f%%", pct)
+}
+
+func pickFormatPrice(price float64) string {
+	if price == 0 {
+		return "-"
+	}
+	return fmt.Sprintf("$%.2f", price)
+}
+
+func pickConfidenceColor(confidence float64) string {
+	if confidence >= 70 {
+		return "var(--color-buy)"
+	}
+	if confidence >= 40 {
+		return "var(--color-hold)"
+	}
+	return "var(--color-sell)"
+}

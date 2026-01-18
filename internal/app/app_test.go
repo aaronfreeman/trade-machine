@@ -5,7 +5,10 @@ import (
 	"testing"
 
 	"trade-machine/config"
+	"trade-machine/models"
 	"trade-machine/repository"
+
+	"github.com/google/uuid"
 )
 
 // testConfig returns a test configuration
@@ -205,4 +208,127 @@ func TestApp_RejectRecommendation_WithDatabase(t *testing.T) {
 	if err != nil {
 		t.Logf("reject recommendation error (expected for nonexistent ID): %v", err)
 	}
+}
+
+func TestApp_SetScreener(t *testing.T) {
+	a := testApp(nil)
+
+	// Initially no screener
+	if a.Screener() != nil {
+		t.Error("expected screener to be nil initially")
+	}
+
+	// Set screener
+	mockScreener := &mockScreener{}
+	a.SetScreener(mockScreener)
+
+	if a.Screener() == nil {
+		t.Error("expected screener to be set")
+	}
+}
+
+func TestApp_RunScreener_NotInitialized(t *testing.T) {
+	ctx := context.Background()
+	a := testApp(nil)
+	a.Startup(ctx)
+
+	_, err := a.RunScreener()
+	if err == nil {
+		t.Error("expected error when screener is nil")
+	}
+	if err.Error() != "screener not initialized" {
+		t.Errorf("expected 'screener not initialized' error, got: %v", err)
+	}
+}
+
+func TestApp_GetLatestScreenerRun_NotInitialized(t *testing.T) {
+	ctx := context.Background()
+	a := testApp(nil)
+	a.Startup(ctx)
+
+	_, err := a.GetLatestScreenerRun()
+	if err == nil {
+		t.Error("expected error when screener is nil")
+	}
+}
+
+func TestApp_GetScreenerRunHistory_NotInitialized(t *testing.T) {
+	ctx := context.Background()
+	a := testApp(nil)
+	a.Startup(ctx)
+
+	_, err := a.GetScreenerRunHistory(10)
+	if err == nil {
+		t.Error("expected error when screener is nil")
+	}
+}
+
+func TestApp_GetScreenerRun_NotInitialized(t *testing.T) {
+	ctx := context.Background()
+	a := testApp(nil)
+	a.Startup(ctx)
+
+	_, err := a.GetScreenerRun("550e8400-e29b-41d4-a716-446655440000")
+	if err == nil {
+		t.Error("expected error when screener is nil")
+	}
+}
+
+func TestApp_GetScreenerRun_InvalidUUID(t *testing.T) {
+	ctx := context.Background()
+	a := testApp(nil)
+	a.Startup(ctx)
+
+	mockScreener := &mockScreener{}
+	a.SetScreener(mockScreener)
+
+	_, err := a.GetScreenerRun("invalid-uuid")
+	if err == nil {
+		t.Error("expected error with invalid UUID")
+	}
+}
+
+func TestApp_GetTopPicks_NotInitialized(t *testing.T) {
+	ctx := context.Background()
+	a := testApp(nil)
+	a.Startup(ctx)
+
+	_, err := a.GetTopPicks()
+	if err == nil {
+		t.Error("expected error when screener is nil")
+	}
+}
+
+// mockScreener implements ScreenerInterface for testing
+type mockScreener struct {
+	runScreenCalled      bool
+	getLatestRunCalled   bool
+	getRunHistoryCalled  bool
+	getRunCalled         bool
+	getLatestPicksCalled bool
+}
+
+func (m *mockScreener) RunScreen(ctx context.Context) (*models.ScreenerRun, error) {
+	m.runScreenCalled = true
+	return &models.ScreenerRun{}, nil
+}
+
+func (m *mockScreener) GetLatestPicks(ctx context.Context) ([]models.ScreenerCandidate, error) {
+	m.getLatestPicksCalled = true
+	return nil, nil
+}
+
+func (m *mockScreener) GetLatestRun(ctx context.Context) (*models.ScreenerRun, error) {
+	m.getLatestRunCalled = true
+	return nil, nil
+}
+
+func (m *mockScreener) GetRunHistory(ctx context.Context, limit int) ([]models.ScreenerRun, error) {
+	m.getRunHistoryCalled = true
+	return nil, nil
+}
+
+func (m *mockScreener) GetRun(ctx context.Context, id uuid.UUID) (*models.ScreenerRun, error) {
+	m.getRunCalled = true
+	return nil, nil
 }

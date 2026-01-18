@@ -17,6 +17,12 @@ templ Index() {
 					</div>
 					<ul class="nav nav-pills flex-column mt-2">
 						<li class="nav-item">
+							<a class="nav-link" href="#" data-section="picks" onclick="showSection('picks'); return false;">
+								<i class="bi bi-gem me-2"></i>
+								Today's Picks
+							</a>
+						</li>
+						<li class="nav-item">
 							<a class="nav-link" href="#" data-section="analyze" onclick="showSection('analyze'); return false;">
 								<i class="bi bi-search me-2"></i>
 								Analyze Stock
@@ -50,8 +56,36 @@ templ Index() {
 				</div>
 				<!-- Main Content -->
 				<div class="col-md-9 col-lg-10 p-4">
+					<!-- Today's Picks Section (Default) -->
+					<div id="picks" class="section active">
+						<div
+							hx-get="/api/screener/picks"
+							hx-trigger="load"
+							hx-target="#picks-content"
+							hx-swap="innerHTML"
+						>
+							<div id="picks-content">
+								<!-- Content loaded via HTMX -->
+								<div class="d-flex justify-content-between align-items-center mb-4">
+									<div>
+										<h3 class="mb-1">
+											<i class="bi bi-gem me-2" style="color: var(--color-buy);"></i>
+											Today's Value Picks
+										</h3>
+										<small class="text-muted">Find undervalued stocks with strong fundamentals</small>
+									</div>
+								</div>
+								<div class="text-center py-5">
+									<div class="spinner-border text-primary" role="status">
+										<span class="visually-hidden">Loading...</span>
+									</div>
+								</div>
+							</div>
+						</div>
+					</div>
+
 					<!-- Analyze Section -->
-					<div id="analyze" class="section active">
+					<div id="analyze" class="section">
 						<div class="d-flex justify-content-between align-items-center mb-4">
 							<h2 class="mb-0">
 								<i class="bi bi-search"></i>

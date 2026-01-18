@@ -283,8 +283,8 @@ templ Layout(title string) {
 
 				// Initialize on page load
 				document.addEventListener('DOMContentLoaded', function() {
-					// Restore last active section or default to 'analyze'
-					var savedSection = localStorage.getItem('activeSection') || 'analyze';
+					// Restore last active section or default to 'picks'
+					var savedSection = localStorage.getItem('activeSection') || 'picks';
 					showSection(savedSection);
 
 					// Initialize HTMX event handlers

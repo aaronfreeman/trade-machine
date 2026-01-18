@@ -10,6 +10,7 @@ import (
 	"trade-machine/internal/app"
 	"trade-machine/observability"
 	"trade-machine/repository"
+	"trade-machine/screener"
 	"trade-machine/services"
 
 	"github.com/joho/godotenv"
@@ -58,6 +59,7 @@ func main() {
 	var alpacaService *services.AlpacaService
 	var alphaVantageService *services.AlphaVantageService
 	var newsAPIService *services.NewsAPIService
+	var fmpService *services.FMPService
 
 	// AWS Bedrock Service
 	if cfg.HasBedrock() {
@@ -90,6 +92,13 @@ func main() {
 		observability.Warn("NewsAPI key not set, news sentiment analysis disabled")
 	}
 
+	// FMP Service (Financial Modeling Prep for stock screening)
+	if cfg.HasFMP() {
+		fmpService = services.NewFMPService(cfg.FMP.APIKey)
+	} else {
+		observability.Warn("FMP_API_KEY not set, stock screener disabled")
+	}
+
 	// Initialize Portfolio Manager and register agents
 	var portfolioManager *agents.PortfolioManager
 	if repo != nil && alpacaService != nil {
@@ -111,6 +120,21 @@ func main() {
 
 	// Initialize app
 	application := app.New(cfg, repo, portfolioManager, alpacaService)
+
+	// Initialize Value Screener if dependencies are available
+	if fmpService != nil && portfolioManager != nil && repo != nil {
+		valueScreener := screener.NewValueScreener(fmpService, portfolioManager, repo, &cfg.Screener)
+		application.SetScreener(valueScreener)
+		observability.Info("value screener initialized")
+	} else {
+		if fmpService == nil {
+			observability.Warn("screener disabled: FMP service not available")
+		}
+		if portfolioManager == nil {
+			observability.Warn("screener disabled: portfolio manager not available")
+		}
+	}
+
 	handler := api.NewHandler(application, cfg)
 	router := api.NewRouter(handler, cfg)
 

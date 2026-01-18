@@ -388,8 +388,184 @@ type AnalyzeRequest struct {
 	Symbol string `json:"symbol"`
 }
 
+// HandleRunScreener triggers a full screener run
+func (h *Handler) HandleRunScreener(w http.ResponseWriter, r *http.Request) {
+	if h.app.Screener() == nil {
+		if isHTMXRequest(r) {
+			h.htmlError(w, "Screener not configured", r)
+			return
+		}
+		h.jsonError(w, "Screener not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	run, err := h.app.RunScreener()
+	if err != nil {
+		if isHTMXRequest(r) {
+			h.htmlError(w, err.Error(), r)
+			return
+		}
+		h.jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if isHTMXRequest(r) {
+		h.htmlResponse(w, partials.ScreenerRunResult(run), r)
+		return
+	}
+
+	h.jsonResponse(w, run)
+}
+
+// HandleGetLatestScreenerRun returns the most recent screener run
+func (h *Handler) HandleGetLatestScreenerRun(w http.ResponseWriter, r *http.Request) {
+	if h.app.Screener() == nil {
+		if isHTMXRequest(r) {
+			h.htmlError(w, "Screener not configured", r)
+			return
+		}
+		h.jsonError(w, "Screener not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	run, err := h.app.GetLatestScreenerRun()
+	if err != nil {
+		if isHTMXRequest(r) {
+			h.htmlError(w, err.Error(), r)
+			return
+		}
+		h.jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if run == nil {
+		if isHTMXRequest(r) {
+			h.htmlResponse(w, partials.ScreenerEmpty(), r)
+			return
+		}
+		h.jsonResponse(w, map[string]interface{}{"run": nil})
+		return
+	}
+
+	if isHTMXRequest(r) {
+		h.htmlResponse(w, partials.ScreenerRunResult(run), r)
+		return
+	}
+
+	h.jsonResponse(w, run)
+}
+
+// HandleGetScreenerRuns returns screener run history
+func (h *Handler) HandleGetScreenerRuns(w http.ResponseWriter, r *http.Request) {
+	if h.app.Screener() == nil {
+		if isHTMXRequest(r) {
+			h.htmlError(w, "Screener not configured", r)
+			return
+		}
+		h.jsonError(w, "Screener not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	limit := h.ParseLimitParam(r, 10)
+
+	runs, err := h.app.GetScreenerRunHistory(limit)
+	if err != nil {
+		if isHTMXRequest(r) {
+			h.htmlError(w, err.Error(), r)
+			return
+		}
+		h.jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if isHTMXRequest(r) {
+		h.htmlResponse(w, partials.ScreenerRunsList(runs), r)
+		return
+	}
+
+	h.jsonResponse(w, runs)
+}
+
+// HandleGetScreenerRun returns a specific screener run by ID
+func (h *Handler) HandleGetScreenerRun(w http.ResponseWriter, r *http.Request) {
+	if h.app.Screener() == nil {
+		if isHTMXRequest(r) {
+			h.htmlError(w, "Screener not configured", r)
+			return
+		}
+		h.jsonError(w, "Screener not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	id := chi.URLParam(r, "id")
+	if id == "" {
+		if isHTMXRequest(r) {
+			h.htmlError(w, "Missing screener run ID", r)
+			return
+		}
+		h.jsonError(w, "Missing screener run ID", http.StatusBadRequest)
+		return
+	}
+
+	run, err := h.app.GetScreenerRun(id)
+	if err != nil {
+		if isHTMXRequest(r) {
+			h.htmlError(w, err.Error(), r)
+			return
+		}
+		h.jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if run == nil {
+		if isHTMXRequest(r) {
+			h.htmlError(w, "Screener run not found", r)
+			return
+		}
+		h.jsonError(w, "Screener run not found", http.StatusNotFound)
+		return
+	}
+
+	if isHTMXRequest(r) {
+		h.htmlResponse(w, partials.ScreenerRunResult(run), r)
+		return
+	}
+
+	h.jsonResponse(w, run)
+}
+
+// HandleGetTopPicks returns the top picks from the latest completed screener run
+func (h *Handler) HandleGetTopPicks(w http.ResponseWriter, r *http.Request) {
+	if h.app.Screener() == nil {
+		if isHTMXRequest(r) {
+			h.htmlError(w, "Screener not configured", r)
+			return
+		}
+		h.jsonError(w, "Screener not configured", http.StatusServiceUnavailable)
+		return
+	}
+
+	picks, err := h.app.GetTopPicks()
+	if err != nil {
+		if isHTMXRequest(r) {
+			h.htmlError(w, err.Error(), r)
+			return
+		}
+		h.jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if isHTMXRequest(r) {
+		h.htmlResponse(w, partials.TopPicksList(picks), r)
+		return
+	}
+
+	h.jsonResponse(w, picks)
+}
+
 // Ensure models are exported for JSON serialization
 var _ = models.Position{}
 var _ = models.Trade{}
 var _ = models.Recommendation{}
 var _ = models.AgentRun{}
+var _ = models.ScreenerRun{}

@@ -1,0 +1,246 @@
+package partials
+
+import (
+	"fmt"
+	"trade-machine/models"
+	"trade-machine/templates/components"
+)
+
+// ScreenerRunResult renders the result of a screener run
+templ ScreenerRunResult(run *models.ScreenerRun) {
+	<div class="fade-in">
+		<!-- Run Summary -->
+		@screenerRunSummary(run)
+
+		if run.Status == models.ScreenerRunStatusCompleted && len(run.Candidates) > 0 {
+			<!-- Candidates Table -->
+			<div class="table-responsive mt-3">
+				<table class="table table-hover mb-0">
+					<thead>
+						<tr>
+							<th>Symbol</th>
+							<th>Company</th>
+							<th class="text-end">Price</th>
+							<th class="text-end">P/E</th>
+							<th class="text-end">P/B</th>
+							<th class="text-end">Div Yield</th>
+							<th class="text-end">Score</th>
+							<th class="text-center">Status</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, c := range run.Candidates {
+							@candidateRow(c)
+						}
+					</tbody>
+				</table>
+			</div>
+		}
+	</div>
+}
+
+templ screenerRunSummary(run *models.ScreenerRun) {
+	<div class="card-body border-bottom" style="border-color: var(--border-default) !important;">
+		<div class="row text-center">
+			<div class="col-md-3">
+				<div class="text-muted small">Status</div>
+				<div class="fs-5">
+					@screenerStatusBadge(run.Status)
+				</div>
+			</div>
+			<div class="col-md-3">
+				<div class="text-muted small">Candidates</div>
+				<div class="fs-5 fw-bold">{ fmt.Sprintf("%d", len(run.Candidates)) }</div>
+			</div>
+			<div class="col-md-3">
+				<div class="text-muted small">Top Picks</div>
+				<div class="fs-5 fw-bold">{ fmt.Sprintf("%d", len(run.TopPicks)) }</div>
+			</div>
+			<div class="col-md-3">
+				<div class="text-muted small">Duration</div>
+				<div class="fs-5 fw-bold">{ formatDuration(int(run.DurationMs)) }</div>
+			</div>
+		</div>
+		if run.Error != "" {
+			<div class="alert alert-danger mt-3 mb-0">
+				<strong>Error:</strong> { run.Error }
+			</div>
+		}
+	</div>
+}
+
+templ screenerStatusBadge(status models.ScreenerRunStatus) {
+	switch status {
+		case models.ScreenerRunStatusRunning:
+			<span class="badge bg-warning text-dark">Running</span>
+		case models.ScreenerRunStatusCompleted:
+			<span class="badge bg-success">Completed</span>
+		case models.ScreenerRunStatusFailed:
+			<span class="badge bg-danger">Failed</span>
+	}
+}
+
+templ candidateRow(c models.ScreenerCandidate) {
+	<tr>
+		<td>
+			<span class="fw-bold">{ c.Symbol }</span>
+		</td>
+		<td>
+			<span class="text-truncate d-inline-block" style="max-width: 200px;">{ c.CompanyName }</span>
+		</td>
+		<td class="text-end">{ screenerFormatPrice(c.Price) }</td>
+		<td class="text-end">{ screenerFormatRatio(c.PERatio) }</td>
+		<td class="text-end">{ screenerFormatRatio(c.PBRatio) }</td>
+		<td class="text-end">{ screenerFormatPercent(c.DividendYield) }</td>
+		<td class="text-end">
+			if c.Score != nil {
+				<span class={ screenerScoreColorClass(*c.Score) }>{ screenerFormatScore(*c.Score) }</span>
+			} else {
+				<span class="text-muted">-</span>
+			}
+		</td>
+		<td class="text-center">
+			if c.Analyzed {
+				<span class="badge bg-success">Analyzed</span>
+			} else {
+				<span class="badge bg-secondary">Pending</span>
+			}
+		</td>
+	</tr>
+}
+
+// ScreenerEmpty renders an empty state when no screener run exists
+templ ScreenerEmpty() {
+	@components.EmptyState("bi-search", "No Screener Runs", "Run the screener to find value stocks.")
+}
+
+// ScreenerRunsList renders a list of screener runs
+templ ScreenerRunsList(runs []models.ScreenerRun) {
+	if len(runs) == 0 {
+		@ScreenerEmpty()
+	} else {
+		<div class="fade-in">
+			<div class="table-responsive">
+				<table class="table table-hover mb-0">
+					<thead>
+						<tr>
+							<th>Date</th>
+							<th class="text-center">Status</th>
+							<th class="text-end">Candidates</th>
+							<th class="text-end">Top Picks</th>
+							<th class="text-end">Duration</th>
+						</tr>
+					</thead>
+					<tbody>
+						for _, run := range runs {
+							@screenerRunRow(run)
+						}
+					</tbody>
+				</table>
+			</div>
+		</div>
+	}
+}
+
+templ screenerRunRow(run models.ScreenerRun) {
+	<tr>
+		<td>{ run.RunAt.Format("2006-01-02 15:04") }</td>
+		<td class="text-center">
+			@screenerStatusBadge(run.Status)
+		</td>
+		<td class="text-end">{ fmt.Sprintf("%d", len(run.Candidates)) }</td>
+		<td class="text-end">{ fmt.Sprintf("%d", len(run.TopPicks)) }</td>
+		<td class="text-end">{ formatDuration(int(run.DurationMs)) }</td>
+	</tr>
+}
+
+// TopPicksList renders the top picks from the screener
+templ TopPicksList(picks []models.ScreenerCandidate) {
+	if len(picks) == 0 {
+		@components.EmptyState("bi-star", "No Picks Yet", "Run the screener to generate top picks.")
+	} else {
+		<div class="fade-in">
+			<div class="row">
+				for _, pick := range picks {
+					<div class="col-md-4 mb-3">
+						@topPickCard(pick)
+					</div>
+				}
+			</div>
+		</div>
+	}
+}
+
+templ topPickCard(pick models.ScreenerCandidate) {
+	<div class="card h-100">
+		<div class="card-body">
+			<div class="d-flex justify-content-between align-items-start">
+				<div>
+					<h5 class="card-title mb-1">{ pick.Symbol }</h5>
+					<p class="card-text text-muted small mb-2">{ pick.CompanyName }</p>
+				</div>
+				if pick.Score != nil {
+					<span class={ "badge", screenerScoreBadgeClass(*pick.Score) }>
+						{ screenerFormatScore(*pick.Score) }
+					</span>
+				}
+			</div>
+			<div class="row mt-3 text-center small">
+				<div class="col-4">
+					<div class="text-muted">Price</div>
+					<div class="fw-bold">{ screenerFormatPrice(pick.Price) }</div>
+				</div>
+				<div class="col-4">
+					<div class="text-muted">P/E</div>
+					<div class="fw-bold">{ screenerFormatRatio(pick.PERatio) }</div>
+				</div>
+				<div class="col-4">
+					<div class="text-muted">Yield</div>
+					<div class="fw-bold">{ screenerFormatPercent(pick.DividendYield) }</div>
+				</div>
+			</div>
+		</div>
+	</div>
+}
+
+func screenerFormatPrice(price float64) string {
+	return fmt.Sprintf("$%.2f", price)
+}
+
+func screenerFormatRatio(ratio float64) string {
+	return fmt.Sprintf("%.2f", ratio)
+}
+
+func screenerFormatPercent(pct float64) string {
+	return fmt.Sprintf("%.2f%%", pct)
+}
+
+func screenerFormatScore(score float64) string {
+	return fmt.Sprintf("%.1f", score)
+}
+
+func screenerScoreColorClass(score float64) string {
+	if score >= 50 {
+		return "text-success fw-bold"
+	}
+	if score >= 25 {
+		return "text-primary fw-bold"
+	}
+	if score <= -25 {
+		return "text-danger fw-bold"
+	}
+	return "fw-bold"
+}
+
+func screenerScoreBadgeClass(score float64) string {
+	if score >= 50 {
+		return "bg-success"
+	}
+	if score >= 25 {
+		return "bg-primary"
+	}
+	if score <= -25 {
+		return "bg-danger"
+	}
+	return "bg-secondary"
+}

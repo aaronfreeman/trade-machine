@@ -55,6 +55,15 @@ func NewRouter(h *Handler, cfg *config.Config) http.Handler {
 
 		// Agent runs
 		r.Get("/agents/runs", h.HandleGetAgentRuns)
+
+		// Screener
+		r.Route("/screener", func(r chi.Router) {
+			r.Post("/run", h.HandleRunScreener)
+			r.Get("/latest", h.HandleGetLatestScreenerRun)
+			r.Get("/runs", h.HandleGetScreenerRuns)
+			r.Get("/runs/{id}", h.HandleGetScreenerRun)
+			r.Get("/picks", h.HandleGetTopPicks)
+		})
 	})
 
 	return r

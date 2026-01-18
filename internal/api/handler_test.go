@@ -691,3 +691,97 @@ func TestHandler_GetAgentRuns_WithType(t *testing.T) {
 		t.Errorf("expected status 200, got %d", w.Code)
 	}
 }
+
+func TestHandler_RunScreener(t *testing.T) {
+	t.Run("screener not configured", func(t *testing.T) {
+		a := testApp(nil)
+		router := testRouter(a)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/screener/run", nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusServiceUnavailable {
+			t.Errorf("expected status 503, got %d", w.Code)
+		}
+	})
+}
+
+func TestHandler_GetLatestScreenerRun(t *testing.T) {
+	t.Run("screener not configured", func(t *testing.T) {
+		a := testApp(nil)
+		router := testRouter(a)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/screener/latest", nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusServiceUnavailable {
+			t.Errorf("expected status 503, got %d", w.Code)
+		}
+	})
+}
+
+func TestHandler_GetScreenerRuns(t *testing.T) {
+	t.Run("screener not configured", func(t *testing.T) {
+		a := testApp(nil)
+		router := testRouter(a)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/screener/runs", nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusServiceUnavailable {
+			t.Errorf("expected status 503, got %d", w.Code)
+		}
+	})
+
+	t.Run("screener not configured with limit", func(t *testing.T) {
+		a := testApp(nil)
+		router := testRouter(a)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/screener/runs?limit=5", nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusServiceUnavailable {
+			t.Errorf("expected status 503, got %d", w.Code)
+		}
+	})
+}
+
+func TestHandler_GetScreenerRun(t *testing.T) {
+	t.Run("screener not configured", func(t *testing.T) {
+		a := testApp(nil)
+		router := testRouter(a)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/screener/runs/550e8400-e29b-41d4-a716-446655440000", nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusServiceUnavailable {
+			t.Errorf("expected status 503, got %d", w.Code)
+		}
+	})
+}
+
+func TestHandler_GetTopPicks(t *testing.T) {
+	t.Run("screener not configured", func(t *testing.T) {
+		a := testApp(nil)
+		router := testRouter(a)
+
+		req := httptest.NewRequest(http.MethodGet, "/api/screener/picks", nil)
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusServiceUnavailable {
+			t.Errorf("expected status 503, got %d", w.Code)
+		}
+	})
+}

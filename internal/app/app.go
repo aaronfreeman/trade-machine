@@ -30,12 +30,22 @@ type PortfolioManagerInterface interface {
 	AnalyzeSymbol(ctx context.Context, symbol string) (*models.Recommendation, error)
 }
 
+// ScreenerInterface defines the screener operations
+type ScreenerInterface interface {
+	RunScreen(ctx context.Context) (*models.ScreenerRun, error)
+	GetLatestPicks(ctx context.Context) ([]models.ScreenerCandidate, error)
+	GetLatestRun(ctx context.Context) (*models.ScreenerRun, error)
+	GetRunHistory(ctx context.Context, limit int) ([]models.ScreenerRun, error)
+	GetRun(ctx context.Context, id uuid.UUID) (*models.ScreenerRun, error)
+}
+
 // App struct holds application dependencies using interfaces for testability
 type App struct {
 	ctx              context.Context
 	cfg              *config.Config
 	repo             RepositoryInterface
 	portfolioManager PortfolioManagerInterface
+	screener         ScreenerInterface
 	alpacaService    services.AlpacaServiceInterface
 	analysisSem      chan struct{}
 }
@@ -66,6 +76,16 @@ func (a *App) Shutdown(ctx context.Context) {
 // Repo returns the repository interface for API handlers
 func (a *App) Repo() RepositoryInterface {
 	return a.repo
+}
+
+// SetScreener sets the screener (optional dependency)
+func (a *App) SetScreener(s ScreenerInterface) {
+	a.screener = s
+}
+
+// Screener returns the screener interface
+func (a *App) Screener() ScreenerInterface {
+	return a.screener
 }
 
 // AnalyzeStock runs all agents to analyze a stock and generate a recommendation
@@ -164,6 +184,52 @@ func (a *App) GetAgentRuns(limit int) ([]models.AgentRun, error) {
 		return nil, fmt.Errorf("database not initialized")
 	}
 	return a.repo.GetAgentRuns(a.ctx, "", limit)
+}
+
+// RunScreener triggers a new screener run
+func (a *App) RunScreener() (*models.ScreenerRun, error) {
+	if a.screener == nil {
+		return nil, fmt.Errorf("screener not initialized")
+	}
+	return a.screener.RunScreen(a.ctx)
+}
+
+// GetLatestScreenerRun returns the most recent screener run
+func (a *App) GetLatestScreenerRun() (*models.ScreenerRun, error) {
+	if a.screener == nil {
+		return nil, fmt.Errorf("screener not initialized")
+	}
+	return a.screener.GetLatestRun(a.ctx)
+}
+
+// GetScreenerRunHistory returns the history of screener runs
+func (a *App) GetScreenerRunHistory(limit int) ([]models.ScreenerRun, error) {
+	if a.screener == nil {
+		return nil, fmt.Errorf("screener not initialized")
+	}
+	return a.screener.GetRunHistory(a.ctx, limit)
+}
+
+// GetScreenerRun returns a specific screener run by ID
+func (a *App) GetScreenerRun(id string) (*models.ScreenerRun, error) {
+	if a.screener == nil {
+		return nil, fmt.Errorf("screener not initialized")
+	}
+
+	uuid, err := ParseUUID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	return a.screener.GetRun(a.ctx, uuid)
+}
+
+// GetTopPicks returns the top picks from the latest completed screener run
+func (a *App) GetTopPicks() ([]models.ScreenerCandidate, error) {
+	if a.screener == nil {
+		return nil, fmt.Errorf("screener not initialized")
+	}
+	return a.screener.GetLatestPicks(a.ctx)
 }
 
 // ParseUUID parses a string UUID into a [16]byte

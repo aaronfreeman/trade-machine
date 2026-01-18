@@ -61,16 +61,16 @@ type NewsAPIConfig struct {
 
 // AgentConfig holds agent-related configuration
 type AgentConfig struct {
-	TimeoutSeconds           int
-	ConcurrencyLimit         int
-	TechnicalLookbackDays    int
-	WeightFundamental        float64
-	WeightNews               float64
-	WeightTechnical          float64
-	Strategy                 string  // default, conservative, aggressive, or custom
-	BuyThreshold             float64 // for custom strategy
-	SellThreshold            float64 // for custom strategy
-	MinConfidence            float64 // for custom/conservative strategy
+	TimeoutSeconds        int
+	ConcurrencyLimit      int
+	TechnicalLookbackDays int
+	WeightFundamental     float64
+	WeightNews            float64
+	WeightTechnical       float64
+	Strategy              string  // default, conservative, aggressive, or custom
+	BuyThreshold          float64 // for custom strategy
+	SellThreshold         float64 // for custom strategy
+	MinConfidence         float64 // for custom/conservative strategy
 }
 
 // PositionSizingConfig holds position sizing configuration
@@ -111,16 +111,16 @@ func Load() (*Config, error) {
 			APIKey: os.Getenv("NEWS_API_KEY"),
 		},
 		Agent: AgentConfig{
-			TimeoutSeconds:           getEnvInt("AGENT_TIMEOUT_SECONDS", 30),
-			ConcurrencyLimit:         getEnvInt("ANALYSIS_CONCURRENCY_LIMIT", 3),
-			TechnicalLookbackDays:    getEnvInt("TECHNICAL_ANALYSIS_LOOKBACK_DAYS", 100),
-			WeightFundamental:        getEnvFloat("AGENT_WEIGHT_FUNDAMENTAL", 0.4),
-			WeightNews:               getEnvFloat("AGENT_WEIGHT_NEWS", 0.3),
-			WeightTechnical:          getEnvFloat("AGENT_WEIGHT_TECHNICAL", 0.3),
-			Strategy:                 getEnvString("AGENT_STRATEGY", "default"),
-			BuyThreshold:             getEnvFloatUnbounded("AGENT_BUY_THRESHOLD", 25),
-			SellThreshold:            getEnvFloatUnbounded("AGENT_SELL_THRESHOLD", -25),
-			MinConfidence:            getEnvFloatUnbounded("AGENT_MIN_CONFIDENCE", 0),
+			TimeoutSeconds:        getEnvInt("AGENT_TIMEOUT_SECONDS", 30),
+			ConcurrencyLimit:      getEnvInt("ANALYSIS_CONCURRENCY_LIMIT", 3),
+			TechnicalLookbackDays: getEnvInt("TECHNICAL_ANALYSIS_LOOKBACK_DAYS", 100),
+			WeightFundamental:     getEnvFloat("AGENT_WEIGHT_FUNDAMENTAL", 0.4),
+			WeightNews:            getEnvFloat("AGENT_WEIGHT_NEWS", 0.3),
+			WeightTechnical:       getEnvFloat("AGENT_WEIGHT_TECHNICAL", 0.3),
+			Strategy:              getEnvString("AGENT_STRATEGY", "default"),
+			BuyThreshold:          getEnvFloatUnbounded("AGENT_BUY_THRESHOLD", 25),
+			SellThreshold:         getEnvFloatUnbounded("AGENT_SELL_THRESHOLD", -25),
+			MinConfidence:         getEnvFloatUnbounded("AGENT_MIN_CONFIDENCE", 0),
 		},
 		PositionSizing: PositionSizingConfig{
 			MaxPositionPercent:   getEnvFloatRange("POSITION_MAX_PERCENT", 0.10, 0.01, 1.0),

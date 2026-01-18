@@ -101,9 +101,16 @@ func (m *PortfolioManager) getAvailableAgents(ctx context.Context) []Agent {
 
 // AnalyzeSymbol runs all agents and generates a recommendation
 func (m *PortfolioManager) AnalyzeSymbol(ctx context.Context, symbol string) (*models.Recommendation, error) {
+	// Record analysis request metric
+	metrics := observability.GetMetrics()
+	metrics.RecordAnalysisRequest(symbol)
+	analysisTimer := metrics.NewTimer()
+
 	// Filter to available agents
 	availableAgents := m.getAvailableAgents(ctx)
 	if len(availableAgents) == 0 {
+		analysisTimer.ObserveAnalysis(symbol, "error")
+		metrics.RecordAnalysisError(symbol, "no_agents_available")
 		return nil, fmt.Errorf("no agents available to analyze %s", symbol)
 	}
 
@@ -123,10 +130,15 @@ func (m *PortfolioManager) AnalyzeSymbol(ctx context.Context, symbol string) (*m
 			run := models.NewAgentRun(ag.Type(), symbol)
 			m.repo.CreateAgentRun(agentCtx, run)
 
+			// Time the agent analysis
+			agentTimer := metrics.NewTimer()
 			analysis, err := ag.Analyze(agentCtx, symbol)
+			agentTimer.ObserveAgent(string(ag.Type()))
+
 			if err != nil {
 				errors[idx] = err
 				run.Fail(err)
+				metrics.RecordAgentError(string(ag.Type()), categorizeError(err))
 			} else {
 				analyses[idx] = analysis
 				run.Complete(map[string]interface{}{
@@ -134,6 +146,7 @@ func (m *PortfolioManager) AnalyzeSymbol(ctx context.Context, symbol string) (*m
 					"confidence": analysis.Confidence,
 					"reasoning":  analysis.Reasoning,
 				})
+				metrics.RecordAgentScore(string(ag.Type()), analysis.Score)
 			}
 
 			m.repo.UpdateAgentRun(agentCtx, run)
@@ -156,6 +169,8 @@ func (m *PortfolioManager) AnalyzeSymbol(ctx context.Context, symbol string) (*m
 	}
 
 	if len(validAnalyses) == 0 {
+		analysisTimer.ObserveAnalysis(symbol, "error")
+		metrics.RecordAnalysisError(symbol, "all_agents_failed")
 		return nil, fmt.Errorf("all agents failed to analyze %s", symbol)
 	}
 
@@ -164,10 +179,73 @@ func (m *PortfolioManager) AnalyzeSymbol(ctx context.Context, symbol string) (*m
 
 	// Save to database
 	if err := m.repo.CreateRecommendation(ctx, rec); err != nil {
+		analysisTimer.ObserveAnalysis(symbol, "error")
+		metrics.RecordAnalysisError(symbol, "db_save_failed")
 		return nil, fmt.Errorf("failed to save recommendation: %w", err)
 	}
 
+	// Record successful analysis and recommendation metrics
+	analysisTimer.ObserveAnalysis(symbol, "success")
+	metrics.RecordRecommendation(string(rec.Action), calculateFinalScore(rec), rec.Confidence)
+
 	return rec, nil
+}
+
+// categorizeError categorizes an error for metrics labeling
+func categorizeError(err error) string {
+	if err == nil {
+		return "none"
+	}
+	errStr := err.Error()
+	switch {
+	case contains(errStr, "timeout"), contains(errStr, "context deadline"):
+		return "timeout"
+	case contains(errStr, "circuit breaker"):
+		return "circuit_breaker"
+	case contains(errStr, "rate limit"), contains(errStr, "too many requests"):
+		return "rate_limit"
+	case contains(errStr, "connection"), contains(errStr, "network"):
+		return "network"
+	default:
+		return "other"
+	}
+}
+
+// contains checks if s contains substr (case-insensitive)
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
+		(len(s) > 0 && len(substr) > 0 && containsLower(s, substr)))
+}
+
+func containsLower(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if matchLower(s[i:i+len(substr)], substr) {
+			return true
+		}
+	}
+	return false
+}
+
+func matchLower(a, b string) bool {
+	for i := 0; i < len(a); i++ {
+		ca, cb := a[i], b[i]
+		if ca >= 'A' && ca <= 'Z' {
+			ca += 'a' - 'A'
+		}
+		if cb >= 'A' && cb <= 'Z' {
+			cb += 'a' - 'A'
+		}
+		if ca != cb {
+			return false
+		}
+	}
+	return true
+}
+
+// calculateFinalScore calculates the weighted final score from a recommendation
+func calculateFinalScore(rec *models.Recommendation) float64 {
+	// Use simple average since we don't have access to weights here
+	return (rec.FundamentalScore + rec.SentimentScore + rec.TechnicalScore) / 3
 }
 
 // synthesizeRecommendation combines agent analyses into a recommendation

@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	appconfig "trade-machine/config"
+	"trade-machine/observability"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
@@ -72,7 +73,11 @@ func NewBedrockService(ctx context.Context, cfg *appconfig.Config) (*BedrockServ
 
 // InvokeWithPrompt sends a prompt to Claude and returns the response text
 func (s *BedrockService) InvokeWithPrompt(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
-	return WithCircuitBreaker(ctx, BreakerBedrock, func() (string, error) {
+	metrics := observability.GetMetrics()
+	metrics.RecordExternalAPIRequest(BreakerBedrock, "invoke")
+	timer := metrics.NewTimer()
+
+	result, err := WithCircuitBreaker(ctx, BreakerBedrock, func() (string, error) {
 		request := ClaudeRequest{
 			AnthropicVersion: s.anthropicVersion,
 			MaxTokens:        s.maxTokens,
@@ -107,6 +112,12 @@ func (s *BedrockService) InvokeWithPrompt(ctx context.Context, systemPrompt, use
 
 		return response.Content[0].Text, nil
 	})
+
+	timer.ObserveExternalAPI(BreakerBedrock, "invoke")
+	if err != nil {
+		metrics.RecordExternalAPIError(BreakerBedrock, "invoke", categorizeAPIError(err))
+	}
+	return result, err
 }
 
 // InvokeStructured sends a prompt and parses the JSON response into the provided struct
@@ -126,7 +137,11 @@ func (s *BedrockService) InvokeStructured(ctx context.Context, systemPrompt, use
 
 // Chat enables multi-turn conversation with Claude
 func (s *BedrockService) Chat(ctx context.Context, systemPrompt string, messages []ClaudeMessage) (string, error) {
-	return WithCircuitBreaker(ctx, BreakerBedrock, func() (string, error) {
+	metrics := observability.GetMetrics()
+	metrics.RecordExternalAPIRequest(BreakerBedrock, "chat")
+	timer := metrics.NewTimer()
+
+	result, err := WithCircuitBreaker(ctx, BreakerBedrock, func() (string, error) {
 		request := ClaudeRequest{
 			AnthropicVersion: s.anthropicVersion,
 			MaxTokens:        s.maxTokens,
@@ -159,4 +174,56 @@ func (s *BedrockService) Chat(ctx context.Context, systemPrompt string, messages
 
 		return response.Content[0].Text, nil
 	})
+
+	timer.ObserveExternalAPI(BreakerBedrock, "chat")
+	if err != nil {
+		metrics.RecordExternalAPIError(BreakerBedrock, "chat", categorizeAPIError(err))
+	}
+	return result, err
+}
+
+// categorizeAPIError categorizes an API error for metrics labeling
+func categorizeAPIError(err error) string {
+	if err == nil {
+		return "none"
+	}
+	errStr := err.Error()
+	switch {
+	case containsStr(errStr, "timeout"), containsStr(errStr, "context deadline"):
+		return "timeout"
+	case containsStr(errStr, "circuit breaker"):
+		return "circuit_breaker"
+	case containsStr(errStr, "rate limit"), containsStr(errStr, "throttl"):
+		return "rate_limit"
+	case containsStr(errStr, "connection"), containsStr(errStr, "network"):
+		return "network"
+	case containsStr(errStr, "unauthorized"), containsStr(errStr, "forbidden"):
+		return "auth"
+	default:
+		return "other"
+	}
+}
+
+// containsStr is a simple case-insensitive contains check
+func containsStr(s, substr string) bool {
+	sLower := toLower(s)
+	substrLower := toLower(substr)
+	for i := 0; i <= len(sLower)-len(substrLower); i++ {
+		if sLower[i:i+len(substrLower)] == substrLower {
+			return true
+		}
+	}
+	return false
+}
+
+func toLower(s string) string {
+	b := make([]byte, len(s))
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c >= 'A' && c <= 'Z' {
+			c += 'a' - 'A'
+		}
+		b[i] = c
+	}
+	return string(b)
 }

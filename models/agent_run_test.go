@@ -118,9 +118,9 @@ func TestAgentRunStatus_Constants(t *testing.T) {
 func TestAgentRun_InputData(t *testing.T) {
 	run := NewAgentRun(AgentTypeManager, "NVDA")
 	run.InputData = map[string]interface{}{
-		"watchlist":   []string{"NVDA", "AMD", "INTC"},
-		"max_trades":  5,
-		"risk_level":  "moderate",
+		"watchlist":  []string{"NVDA", "AMD", "INTC"},
+		"max_trades": 5,
+		"risk_level": "moderate",
 	}
 
 	if run.InputData == nil {

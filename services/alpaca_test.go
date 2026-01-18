@@ -224,10 +224,10 @@ func TestPositionSide_Values(t *testing.T) {
 // Mock implementations for Alpaca clients
 
 type mockAlpacaTradeClient struct {
-	getAccountFunc    func() (*alpaca.Account, error)
-	placeOrderFunc    func(req alpaca.PlaceOrderRequest) (*alpaca.Order, error)
-	getPositionsFunc  func() ([]alpaca.Position, error)
-	getPositionFunc   func(symbol string) (*alpaca.Position, error)
+	getAccountFunc   func() (*alpaca.Account, error)
+	placeOrderFunc   func(req alpaca.PlaceOrderRequest) (*alpaca.Order, error)
+	getPositionsFunc func() ([]alpaca.Position, error)
+	getPositionFunc  func(symbol string) (*alpaca.Position, error)
 }
 
 func (m *mockAlpacaTradeClient) GetAccount() (*alpaca.Account, error) {
@@ -319,8 +319,8 @@ func TestPlaceOrder_OrderTypes(t *testing.T) {
 	SetGlobalRegistry(NewCircuitBreakerRegistry(DefaultCircuitBreakerConfig))
 
 	tests := []struct {
-		orderType     string
-		expectedType  alpaca.OrderType
+		orderType    string
+		expectedType alpaca.OrderType
 	}{
 		{"market", alpaca.Market},
 		{"limit", alpaca.Limit},

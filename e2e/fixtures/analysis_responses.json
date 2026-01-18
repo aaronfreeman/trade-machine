@@ -1,0 +1,35 @@
+{
+  "fundamental": {
+    "score": 45.0,
+    "confidence": 75.0,
+    "reasoning": "Strong fundamentals with reasonable valuation. P/E ratio of 15.2 is below industry average. Consistent earnings growth of 12% YoY. Strong balance sheet with low debt-to-equity ratio.",
+    "key_factors": [
+      "Low P/E ratio relative to sector",
+      "Consistent earnings growth",
+      "Strong balance sheet",
+      "Healthy dividend yield"
+    ]
+  },
+  "technical": {
+    "score": 30.0,
+    "confidence": 65.0,
+    "reasoning": "Bullish technical signals with price above key moving averages. RSI at 55 indicates neutral momentum with room for upside. MACD recently crossed above signal line.",
+    "signals": [
+      "Price above 50-day MA",
+      "Price above 200-day MA",
+      "RSI neutral at 55",
+      "Bullish MACD crossover"
+    ]
+  },
+  "news": {
+    "score": 25.0,
+    "confidence": 60.0,
+    "reasoning": "Mixed news sentiment with slight positive bias. Recent earnings beat expectations. Analyst coverage remains favorable with 3 upgrades in past month.",
+    "key_themes": [
+      "Earnings beat expectations",
+      "Analyst upgrades",
+      "New product announcements",
+      "Market expansion plans"
+    ]
+  }
+}

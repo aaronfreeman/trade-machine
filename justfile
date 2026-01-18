@@ -66,3 +66,25 @@ docker-up:
 
 docker-down:
 	docker-compose down
+
+# Start E2E test database
+e2e-up:
+	docker-compose -f e2e/docker-compose.test.yml up -d
+	@echo "Waiting for test PostgreSQL to be ready..."
+	@sleep 3
+	goose -dir migrations postgres "host=localhost port=5433 user=trademachine_test password=test_password dbname=trademachine_test sslmode=disable" up
+
+# Stop E2E test database
+e2e-down:
+	docker-compose -f e2e/docker-compose.test.yml down -v
+
+# Run E2E tests (requires e2e-up first)
+e2e-test:
+	templ generate
+	E2E_DATABASE_URL="postgres://trademachine_test:test_password@localhost:5433/trademachine_test?sslmode=disable" go test -v -tags=e2e -count=1 ./e2e/...
+
+# Run all E2E tests with setup/teardown
+e2e: e2e-up
+	templ generate
+	E2E_DATABASE_URL="postgres://trademachine_test:test_password@localhost:5433/trademachine_test?sslmode=disable" go test -v -tags=e2e -count=1 ./e2e/... || (just e2e-down && exit 1)
+	just e2e-down

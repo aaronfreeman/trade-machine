@@ -36,3 +36,9 @@ func (r *Repository) Close() {
 func (r *Repository) Health(ctx context.Context) error {
 	return r.pool.Ping(ctx)
 }
+
+// Pool returns the underlying connection pool for advanced operations.
+// This is primarily intended for testing and cleanup operations.
+func (r *Repository) Pool() *pgxpool.Pool {
+	return r.pool
+}

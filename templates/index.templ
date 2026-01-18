@@ -1,5 +1,7 @@
 package templates
 
+import "trade-machine/templates/components"
+
 templ Index() {
 	@Layout("Trade Machine") {
 		<div class="container-fluid">
@@ -11,6 +13,7 @@ templ Index() {
 							<i class="bi bi-graph-up-arrow me-2" style="color: var(--color-buy);"></i>
 							<span>Trade Machine</span>
 						</h5>
+						<small class="text-muted">AI-Powered Trading</small>
 					</div>
 					<ul class="nav nav-pills flex-column mt-2">
 						<li class="nav-item">
@@ -49,28 +52,45 @@ templ Index() {
 				<div class="col-md-9 col-lg-10 p-4">
 					<!-- Analyze Section -->
 					<div id="analyze" class="section active">
-						<h2 class="mb-4">
-							<i class="bi bi-search"></i>
-							Analyze Stock
-						</h2>
+						<div class="d-flex justify-content-between align-items-center mb-4">
+							<h2 class="mb-0">
+								<i class="bi bi-search"></i>
+								Analyze Stock
+							</h2>
+						</div>
 						<div class="card">
 							<div class="card-body">
-								<p class="text-muted">Enter a stock symbol to run AI-powered analysis using fundamental, technical, and sentiment agents.</p>
+								<p class="text-muted mb-4">
+									Enter a stock symbol to run AI-powered analysis using fundamental, technical, and sentiment agents.
+									The system will generate a BUY, SELL, or HOLD recommendation with detailed reasoning.
+								</p>
 								<form hx-post="/api/analyze" hx-target="#analyze-result" hx-swap="innerHTML" hx-indicator="#analyze-spinner">
 									<div class="row g-3 align-items-end">
 										<div class="col-auto">
 											<label for="symbol" class="form-label">Stock Symbol</label>
-											<input type="text" name="symbol" id="symbol" class="form-control" placeholder="AAPL" style="width: 150px;" required/>
+											<input
+												type="text"
+												name="symbol"
+												id="symbol"
+												class="form-control form-control-lg"
+												placeholder="AAPL"
+												style="width: 180px; text-transform: uppercase;"
+												maxlength="10"
+												required
+											/>
 										</div>
 										<div class="col-auto">
-											<button type="submit" class="btn btn-primary">
+											<button type="submit" class="btn btn-primary btn-lg">
 												<i class="bi bi-cpu me-2"></i>
 												Analyze
 											</button>
 										</div>
 										<div class="col-auto">
-											<div id="analyze-spinner" class="spinner-border text-primary htmx-indicator" role="status">
-												<span class="visually-hidden">Loading...</span>
+											<div id="analyze-spinner" class="htmx-indicator">
+												<div class="spinner-border text-primary" role="status">
+													<span class="visually-hidden">Analyzing...</span>
+												</div>
+												<span class="ms-2 text-muted">Running analysis...</span>
 											</div>
 										</div>
 									</div>
@@ -79,74 +99,131 @@ templ Index() {
 							</div>
 						</div>
 					</div>
+
 					<!-- Recommendations Section -->
 					<div id="recommendations" class="section">
-						<h2 class="mb-4">
-							<i class="bi bi-lightbulb"></i>
-							Recommendations
-						</h2>
-						<div class="mb-3">
-							<button class="btn btn-primary" hx-get="/api/recommendations/pending" hx-target="#recommendations-list" hx-swap="innerHTML">
-								<i class="bi bi-hourglass-split me-2"></i>
-								Show Pending
-							</button>
-							<button class="btn btn-secondary" hx-get="/api/recommendations?limit=50" hx-target="#recommendations-list" hx-swap="innerHTML">
-								<i class="bi bi-list-ul me-2"></i>
-								Show All
-							</button>
-						</div>
-						<div id="recommendations-list" class="card">
-							<div class="card-body text-center text-muted">
-								Click a button above to load recommendations
+						<div class="d-flex justify-content-between align-items-center mb-4">
+							<h2 class="mb-0">
+								<i class="bi bi-lightbulb"></i>
+								Recommendations
+							</h2>
+							<div class="btn-group">
+								<button
+									class="btn btn-primary"
+									hx-get="/api/recommendations/pending"
+									hx-target="#recommendations-list"
+									hx-swap="innerHTML"
+									hx-indicator="#recommendations-spinner"
+								>
+									<i class="bi bi-hourglass-split me-2"></i>
+									Pending
+								</button>
+								<button
+									class="btn btn-secondary"
+									hx-get="/api/recommendations?limit=50"
+									hx-target="#recommendations-list"
+									hx-swap="innerHTML"
+									hx-indicator="#recommendations-spinner"
+								>
+									<i class="bi bi-list-ul me-2"></i>
+									All
+								</button>
 							</div>
 						</div>
+						<div id="recommendations-spinner" class="htmx-indicator text-center py-3">
+							<div class="spinner-border text-primary" role="status">
+								<span class="visually-hidden">Loading...</span>
+							</div>
+						</div>
+						<div id="recommendations-list">
+							@components.EmptyState("bi-lightbulb", "No Recommendations Loaded", "Click 'Pending' or 'All' to load recommendations.")
+						</div>
 					</div>
+
 					<!-- Portfolio Section -->
 					<div id="portfolio" class="section">
-						<h2 class="mb-4">
-							<i class="bi bi-briefcase"></i>
-							Portfolio
-						</h2>
-						<button class="btn btn-primary mb-3" hx-get="/api/positions" hx-target="#portfolio-list" hx-swap="innerHTML">
-							<i class="bi bi-arrow-clockwise me-2"></i>
-							Refresh Positions
-						</button>
-						<div id="portfolio-list" class="card">
-							<div class="card-body text-center text-muted">
-								Click refresh to load positions
+						<div class="d-flex justify-content-between align-items-center mb-4">
+							<h2 class="mb-0">
+								<i class="bi bi-briefcase"></i>
+								Portfolio
+							</h2>
+							<button
+								class="btn btn-primary"
+								hx-get="/api/positions"
+								hx-target="#portfolio-list"
+								hx-swap="innerHTML"
+								hx-indicator="#portfolio-spinner"
+								hx-trigger="click, load"
+							>
+								<i class="bi bi-arrow-clockwise me-2"></i>
+								Refresh
+							</button>
+						</div>
+						<div id="portfolio-spinner" class="htmx-indicator text-center py-3">
+							<div class="spinner-border text-primary" role="status">
+								<span class="visually-hidden">Loading...</span>
 							</div>
 						</div>
+						<div id="portfolio-list" class="card">
+							@components.EmptyPositions()
+						</div>
 					</div>
+
 					<!-- Trades Section -->
 					<div id="trades" class="section">
-						<h2 class="mb-4">
-							<i class="bi bi-arrow-left-right"></i>
-							Recent Trades
-						</h2>
-						<button class="btn btn-primary mb-3" hx-get="/api/trades?limit=50" hx-target="#trades-list" hx-swap="innerHTML">
-							<i class="bi bi-arrow-clockwise me-2"></i>
-							Refresh Trades
-						</button>
-						<div id="trades-list" class="card">
-							<div class="card-body text-center text-muted">
-								Click refresh to load trades
+						<div class="d-flex justify-content-between align-items-center mb-4">
+							<h2 class="mb-0">
+								<i class="bi bi-arrow-left-right"></i>
+								Recent Trades
+							</h2>
+							<button
+								class="btn btn-primary"
+								hx-get="/api/trades?limit=50"
+								hx-target="#trades-list"
+								hx-swap="innerHTML"
+								hx-indicator="#trades-spinner"
+								hx-trigger="click, load"
+							>
+								<i class="bi bi-arrow-clockwise me-2"></i>
+								Refresh
+							</button>
+						</div>
+						<div id="trades-spinner" class="htmx-indicator text-center py-3">
+							<div class="spinner-border text-primary" role="status">
+								<span class="visually-hidden">Loading...</span>
 							</div>
 						</div>
+						<div id="trades-list" class="card">
+							@components.EmptyTrades()
+						</div>
 					</div>
+
 					<!-- Agent Runs Section -->
 					<div id="agents" class="section">
-						<h2 class="mb-4">
-							<i class="bi bi-robot"></i>
-							Agent Runs
-						</h2>
-						<button class="btn btn-primary mb-3" hx-get="/api/agents/runs?limit=50" hx-target="#agents-list" hx-swap="innerHTML">
-							<i class="bi bi-arrow-clockwise me-2"></i>
-							Refresh Agent Runs
-						</button>
-						<div id="agents-list" class="card">
-							<div class="card-body text-center text-muted">
-								Click refresh to load agent runs
+						<div class="d-flex justify-content-between align-items-center mb-4">
+							<h2 class="mb-0">
+								<i class="bi bi-robot"></i>
+								Agent Runs
+							</h2>
+							<button
+								class="btn btn-primary"
+								hx-get="/api/agents/runs?limit=50"
+								hx-target="#agents-list"
+								hx-swap="innerHTML"
+								hx-indicator="#agents-spinner"
+								hx-trigger="click, load"
+							>
+								<i class="bi bi-arrow-clockwise me-2"></i>
+								Refresh
+							</button>
+						</div>
+						<div id="agents-spinner" class="htmx-indicator text-center py-3">
+							<div class="spinner-border text-primary" role="status">
+								<span class="visually-hidden">Loading...</span>
 							</div>
+						</div>
+						<div id="agents-list">
+							@components.EmptyAgentRuns()
 						</div>
 					</div>
 				</div>

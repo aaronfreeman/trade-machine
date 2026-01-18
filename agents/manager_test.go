@@ -120,7 +120,7 @@ func TestPortfolioManager_SynthesizeRecommendation(t *testing.T) {
 		},
 	}
 
-	rec := manager.synthesizeRecommendation(context.Background(), "AAPL", analyses)
+	rec := manager.synthesizeRecommendation(context.Background(), "AAPL", analyses, nil)
 
 	if rec.Symbol != "AAPL" {
 		t.Errorf("Symbol = %v, want 'AAPL'", rec.Symbol)
@@ -146,6 +146,16 @@ func TestPortfolioManager_SynthesizeRecommendation(t *testing.T) {
 	if rec.Reasoning == "" {
 		t.Error("Reasoning should not be empty")
 	}
+
+	// Data completeness should be 100% with all 3 agents
+	if rec.DataCompleteness != 100.0 {
+		t.Errorf("DataCompleteness = %v, want 100.0", rec.DataCompleteness)
+	}
+
+	// No missing agents
+	if len(rec.MissingAgents) != 0 {
+		t.Errorf("MissingAgents length = %v, want 0", len(rec.MissingAgents))
+	}
 }
 
 func TestPortfolioManager_SynthesizeRecommendation_Hold(t *testing.T) {
@@ -169,7 +179,7 @@ func TestPortfolioManager_SynthesizeRecommendation_Hold(t *testing.T) {
 		},
 	}
 
-	rec := manager.synthesizeRecommendation(context.Background(), "MSFT", analyses)
+	rec := manager.synthesizeRecommendation(context.Background(), "MSFT", analyses, nil)
 
 	// With mixed low scores, should be hold
 	if rec.Action != models.RecommendationActionHold {
@@ -205,12 +215,243 @@ func TestPortfolioManager_SynthesizeRecommendation_Sell(t *testing.T) {
 		},
 	}
 
-	rec := manager.synthesizeRecommendation(context.Background(), "TSLA", analyses)
+	rec := manager.synthesizeRecommendation(context.Background(), "TSLA", analyses, nil)
 
 	// With all negative scores, action should be sell
 	if rec.Action != models.RecommendationActionSell {
 		t.Errorf("Action = %v, want Sell (all scores negative)", rec.Action)
 	}
+}
+
+func TestPortfolioManager_SynthesizeRecommendation_PartialAgentFailure(t *testing.T) {
+	manager := NewPortfolioManager(nil, testConfig(), newMockAccountProvider())
+
+	// Test with only 2 of 3 agents succeeding
+	analyses := []*Analysis{
+		{
+			Symbol:     "AAPL",
+			AgentType:  models.AgentTypeFundamental,
+			Score:      50.0,
+			Confidence: 80.0,
+			Reasoning:  "Strong fundamentals",
+		},
+		{
+			Symbol:     "AAPL",
+			AgentType:  models.AgentTypeNews,
+			Score:      40.0,
+			Confidence: 70.0,
+			Reasoning:  "Positive sentiment",
+		},
+	}
+
+	missingAgents := []models.MissingAgentInfo{
+		{
+			AgentType: models.AgentTypeTechnical,
+			Reason:    "Technical Analyst failed: Alpaca API timeout",
+		},
+	}
+
+	rec := manager.synthesizeRecommendation(context.Background(), "AAPL", analyses, missingAgents)
+
+	// Data completeness should be ~66.67% with 2 of 3 agents
+	expectedCompleteness := 66.67
+	if !floatNearlyEqual(rec.DataCompleteness, expectedCompleteness, 0.01) {
+		t.Errorf("DataCompleteness = %v, want ~%v", rec.DataCompleteness, expectedCompleteness)
+	}
+
+	// Should have 1 missing agent
+	if len(rec.MissingAgents) != 1 {
+		t.Errorf("MissingAgents length = %v, want 1", len(rec.MissingAgents))
+	}
+
+	if rec.MissingAgents[0].AgentType != models.AgentTypeTechnical {
+		t.Errorf("MissingAgents[0].AgentType = %v, want technical", rec.MissingAgents[0].AgentType)
+	}
+
+	// Reasoning should mention unavailable agent
+	if !containsString(rec.Reasoning, "unavailable") {
+		t.Error("Reasoning should mention unavailable agent")
+	}
+
+	// Reasoning should mention reduced confidence
+	if !containsString(rec.Reasoning, "Confidence reduced") {
+		t.Error("Reasoning should mention confidence reduction")
+	}
+
+	// Original average confidence is (80+70)/2 = 75
+	// With 1 missing agent, 15% penalty: 75 * 0.85 = 63.75
+	expectedConfidence := 63.75
+	if rec.Confidence != expectedConfidence {
+		t.Errorf("Confidence = %v, want %v (with 15%% penalty)", rec.Confidence, expectedConfidence)
+	}
+}
+
+func TestPortfolioManager_SynthesizeRecommendation_TwoAgentsMissing(t *testing.T) {
+	manager := NewPortfolioManager(nil, testConfig(), newMockAccountProvider())
+
+	// Test with only 1 of 3 agents succeeding
+	analyses := []*Analysis{
+		{
+			Symbol:     "AAPL",
+			AgentType:  models.AgentTypeFundamental,
+			Score:      50.0,
+			Confidence: 80.0,
+			Reasoning:  "Strong fundamentals",
+		},
+	}
+
+	missingAgents := []models.MissingAgentInfo{
+		{
+			AgentType: models.AgentTypeTechnical,
+			Reason:    "Technical Analyst unavailable: dependencies not healthy",
+		},
+		{
+			AgentType: models.AgentTypeNews,
+			Reason:    "News Analyst failed: NewsAPI rate limit exceeded",
+		},
+	}
+
+	rec := manager.synthesizeRecommendation(context.Background(), "AAPL", analyses, missingAgents)
+
+	// Data completeness should be ~33.33% with 1 of 3 agents
+	expectedCompleteness := 33.33
+	if !floatNearlyEqual(rec.DataCompleteness, expectedCompleteness, 0.01) {
+		t.Errorf("DataCompleteness = %v, want ~%v", rec.DataCompleteness, expectedCompleteness)
+	}
+
+	// Should have 2 missing agents
+	if len(rec.MissingAgents) != 2 {
+		t.Errorf("MissingAgents length = %v, want 2", len(rec.MissingAgents))
+	}
+
+	// Original confidence is 80
+	// With 2 missing agents, 30% penalty: 80 * 0.70 = 56
+	expectedConfidence := 56.0
+	if rec.Confidence != expectedConfidence {
+		t.Errorf("Confidence = %v, want %v (with 30%% penalty)", rec.Confidence, expectedConfidence)
+	}
+
+	// Reasoning should mention multiple unavailable agents
+	if !containsString(rec.Reasoning, "1 of 3 agents") {
+		t.Error("Reasoning should mention '1 of 3 agents'")
+	}
+}
+
+func TestPortfolioManager_SynthesizeRecommendation_NoMissingAgents(t *testing.T) {
+	manager := NewPortfolioManager(nil, testConfig(), newMockAccountProvider())
+
+	// Test with all 3 agents succeeding
+	analyses := []*Analysis{
+		{
+			Symbol:     "AAPL",
+			AgentType:  models.AgentTypeFundamental,
+			Score:      50.0,
+			Confidence: 80.0,
+			Reasoning:  "Strong fundamentals",
+		},
+		{
+			Symbol:     "AAPL",
+			AgentType:  models.AgentTypeNews,
+			Score:      40.0,
+			Confidence: 70.0,
+			Reasoning:  "Positive sentiment",
+		},
+		{
+			Symbol:     "AAPL",
+			AgentType:  models.AgentTypeTechnical,
+			Score:      30.0,
+			Confidence: 60.0,
+			Reasoning:  "Neutral technical signals",
+		},
+	}
+
+	rec := manager.synthesizeRecommendation(context.Background(), "AAPL", analyses, nil)
+
+	// Data completeness should be 100%
+	if rec.DataCompleteness != 100.0 {
+		t.Errorf("DataCompleteness = %v, want 100.0", rec.DataCompleteness)
+	}
+
+	// No missing agents
+	if len(rec.MissingAgents) != 0 {
+		t.Errorf("MissingAgents length = %v, want 0", len(rec.MissingAgents))
+	}
+
+	// Reasoning should NOT mention unavailable or confidence reduction
+	if containsString(rec.Reasoning, "unavailable") {
+		t.Error("Reasoning should NOT mention unavailable when all agents succeed")
+	}
+	if containsString(rec.Reasoning, "Confidence reduced") {
+		t.Error("Reasoning should NOT mention confidence reduction when all agents succeed")
+	}
+
+	// Confidence should be average without penalty: (80+70+60)/3 = 70
+	expectedConfidence := 70.0
+	if rec.Confidence != expectedConfidence {
+		t.Errorf("Confidence = %v, want %v (no penalty)", rec.Confidence, expectedConfidence)
+	}
+}
+
+func TestFormatMissingAgents(t *testing.T) {
+	tests := []struct {
+		name     string
+		types    []string
+		expected string
+	}{
+		{
+			name:     "empty",
+			types:    []string{},
+			expected: "",
+		},
+		{
+			name:     "single agent",
+			types:    []string{"technical"},
+			expected: "technical",
+		},
+		{
+			name:     "two agents",
+			types:    []string{"technical", "news"},
+			expected: "technical and news",
+		},
+		{
+			name:     "three agents",
+			types:    []string{"fundamental", "technical", "news"},
+			expected: "fundamental, technical, and news",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := formatMissingAgents(tt.types)
+			if result != tt.expected {
+				t.Errorf("formatMissingAgents(%v) = %v, want %v", tt.types, result, tt.expected)
+			}
+		})
+	}
+}
+
+// containsString is a helper to check if a string contains a substring
+func containsString(s, substr string) bool {
+	return len(s) >= len(substr) && (s == substr || len(substr) == 0 ||
+		(len(s) > 0 && len(substr) > 0 && stringContains(s, substr)))
+}
+
+func stringContains(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
+}
+
+// floatNearlyEqual checks if two floats are equal within a tolerance
+func floatNearlyEqual(a, b, tolerance float64) bool {
+	diff := a - b
+	if diff < 0 {
+		diff = -diff
+	}
+	return diff <= tolerance
 }
 
 func TestPortfolioManager_GetAgents(t *testing.T) {

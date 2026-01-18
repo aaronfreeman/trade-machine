@@ -18,11 +18,19 @@ type Recommendation struct {
 	FundamentalScore float64              `json:"fundamental_score"`
 	SentimentScore   float64              `json:"sentiment_score"`
 	TechnicalScore   float64              `json:"technical_score"`
+	DataCompleteness float64              `json:"data_completeness"` // 0-100: percentage of agents that succeeded
+	MissingAgents    []MissingAgentInfo   `json:"missing_agents,omitempty"`
 	Status           RecommendationStatus `json:"status"`
 	ApprovedAt       *time.Time           `json:"approved_at,omitempty"`
 	RejectedAt       *time.Time           `json:"rejected_at,omitempty"`
 	ExecutedTradeID  *uuid.UUID           `json:"executed_trade_id,omitempty"`
 	CreatedAt        time.Time            `json:"created_at"`
+}
+
+// MissingAgentInfo captures information about an agent that was unavailable or failed
+type MissingAgentInfo struct {
+	AgentType AgentType `json:"agent_type"`
+	Reason    string    `json:"reason"`
 }
 
 type RecommendationAction string

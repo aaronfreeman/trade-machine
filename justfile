@@ -17,6 +17,7 @@ generate:
 
 # Run in development mode
 start: generate
+    templ generate
     wails dev -devserver "localhost:$DEV_PORT"
 
 # Build for production
@@ -36,6 +37,7 @@ fmt:
 
 # Run tests
 test:
+    templ generate
     DATABASE_URL="postgres://trademachine:trademachine_dev@localhost:5432/trademachine?sslmode=disable" go test -count=1 -cover ./...
 
 # Run tests with coverage report (opens in browser)

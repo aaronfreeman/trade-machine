@@ -1,8 +1,10 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"regexp"
 	"strconv"
@@ -13,6 +15,8 @@ import (
 	"trade-machine/models"
 	"trade-machine/services"
 	"trade-machine/templates"
+	"trade-machine/templates/components"
+	"trade-machine/templates/partials"
 
 	"github.com/go-chi/chi/v5"
 )
@@ -88,7 +92,16 @@ func (h *Handler) HandleGetPortfolio(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) HandleGetPositions(w http.ResponseWriter, r *http.Request) {
 	positions, err := h.app.GetPositions()
 	if err != nil {
+		if isHTMXRequest(r) {
+			h.htmlError(w, err.Error(), r)
+			return
+		}
 		h.jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if isHTMXRequest(r) {
+		h.htmlResponse(w, partials.PositionsList(positions), r)
 		return
 	}
 
@@ -101,7 +114,16 @@ func (h *Handler) HandleGetRecommendations(w http.ResponseWriter, r *http.Reques
 
 	recs, err := h.app.GetRecommendations(limit)
 	if err != nil {
+		if isHTMXRequest(r) {
+			h.htmlError(w, err.Error(), r)
+			return
+		}
 		h.jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if isHTMXRequest(r) {
+		h.htmlResponse(w, partials.RecommendationsList(recs), r)
 		return
 	}
 
@@ -112,7 +134,16 @@ func (h *Handler) HandleGetRecommendations(w http.ResponseWriter, r *http.Reques
 func (h *Handler) HandleGetPendingRecommendations(w http.ResponseWriter, r *http.Request) {
 	recs, err := h.app.GetPendingRecommendations()
 	if err != nil {
+		if isHTMXRequest(r) {
+			h.htmlError(w, err.Error(), r)
+			return
+		}
 		h.jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if isHTMXRequest(r) {
+		h.htmlResponse(w, partials.RecommendationsList(recs), r)
 		return
 	}
 
@@ -123,12 +154,31 @@ func (h *Handler) HandleGetPendingRecommendations(w http.ResponseWriter, r *http
 func (h *Handler) HandleApproveRecommendation(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
+		if isHTMXRequest(r) {
+			h.htmlError(w, "Missing recommendation ID", r)
+			return
+		}
 		h.jsonError(w, "Missing recommendation ID", http.StatusBadRequest)
 		return
 	}
 
 	if err := h.app.ApproveRecommendation(id); err != nil {
+		if isHTMXRequest(r) {
+			h.htmlError(w, err.Error(), r)
+			return
+		}
 		h.jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if isHTMXRequest(r) {
+		// Return the updated recommendation card
+		rec, err := h.app.GetRecommendationByID(id)
+		if err != nil {
+			h.htmlError(w, err.Error(), r)
+			return
+		}
+		h.htmlResponse(w, partials.RecommendationCardUpdated(*rec), r)
 		return
 	}
 
@@ -139,12 +189,31 @@ func (h *Handler) HandleApproveRecommendation(w http.ResponseWriter, r *http.Req
 func (h *Handler) HandleRejectRecommendation(w http.ResponseWriter, r *http.Request) {
 	id := chi.URLParam(r, "id")
 	if id == "" {
+		if isHTMXRequest(r) {
+			h.htmlError(w, "Missing recommendation ID", r)
+			return
+		}
 		h.jsonError(w, "Missing recommendation ID", http.StatusBadRequest)
 		return
 	}
 
 	if err := h.app.RejectRecommendation(id); err != nil {
+		if isHTMXRequest(r) {
+			h.htmlError(w, err.Error(), r)
+			return
+		}
 		h.jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if isHTMXRequest(r) {
+		// Return the updated recommendation card
+		rec, err := h.app.GetRecommendationByID(id)
+		if err != nil {
+			h.htmlError(w, err.Error(), r)
+			return
+		}
+		h.htmlResponse(w, partials.RecommendationCardUpdated(*rec), r)
 		return
 	}
 
@@ -163,6 +232,10 @@ func (h *Handler) HandleAnalyzeStock(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if req.Symbol == "" {
+		if isHTMXRequest(r) {
+			h.htmlError(w, "Symbol is required", r)
+			return
+		}
 		h.jsonError(w, "Symbol is required", http.StatusBadRequest)
 		return
 	}
@@ -171,13 +244,26 @@ func (h *Handler) HandleAnalyzeStock(w http.ResponseWriter, r *http.Request) {
 	req.Symbol = strings.ToUpper(strings.TrimSpace(req.Symbol))
 
 	if err := h.ValidateSymbol(req.Symbol); err != nil {
+		if isHTMXRequest(r) {
+			h.htmlError(w, err.Error(), r)
+			return
+		}
 		h.jsonError(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
 	rec, err := h.app.AnalyzeStock(req.Symbol)
 	if err != nil {
+		if isHTMXRequest(r) {
+			h.htmlError(w, err.Error(), r)
+			return
+		}
 		h.jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if isHTMXRequest(r) {
+		h.htmlResponse(w, partials.AnalyzeResult(rec), r)
 		return
 	}
 
@@ -190,7 +276,16 @@ func (h *Handler) HandleGetTrades(w http.ResponseWriter, r *http.Request) {
 
 	trades, err := h.app.GetTrades(limit)
 	if err != nil {
+		if isHTMXRequest(r) {
+			h.htmlError(w, err.Error(), r)
+			return
+		}
 		h.jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if isHTMXRequest(r) {
+		h.htmlResponse(w, partials.TradesList(trades), r)
 		return
 	}
 
@@ -203,7 +298,16 @@ func (h *Handler) HandleGetAgentRuns(w http.ResponseWriter, r *http.Request) {
 
 	runs, err := h.app.GetAgentRuns(limit)
 	if err != nil {
+		if isHTMXRequest(r) {
+			h.htmlError(w, err.Error(), r)
+			return
+		}
 		h.jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if isHTMXRequest(r) {
+		h.htmlResponse(w, partials.AgentRunsList(runs), r)
 		return
 	}
 
@@ -211,6 +315,28 @@ func (h *Handler) HandleGetAgentRuns(w http.ResponseWriter, r *http.Request) {
 }
 
 // Helper functions
+
+// isHTMXRequest checks if the request is from HTMX
+func isHTMXRequest(r *http.Request) bool {
+	return r.Header.Get("HX-Request") == "true"
+}
+
+// templComponent matches the templ.Component interface
+type templComponent interface {
+	Render(ctx context.Context, w io.Writer) error
+}
+
+// htmlResponse renders a templ component as HTML
+func (h *Handler) htmlResponse(w http.ResponseWriter, component templComponent, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	component.Render(r.Context(), w)
+}
+
+// htmlError renders an error state as HTML
+func (h *Handler) htmlError(w http.ResponseWriter, message string, r *http.Request) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	components.ErrorState(message).Render(r.Context(), w)
+}
 
 // ValidateSymbol validates a stock symbol
 func (h *Handler) ValidateSymbol(symbol string) error {

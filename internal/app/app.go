@@ -16,6 +16,7 @@ type RepositoryInterface interface {
 	Close()
 	Health(ctx context.Context) error
 	GetRecommendations(ctx context.Context, status models.RecommendationStatus, limit int) ([]models.Recommendation, error)
+	GetRecommendation(ctx context.Context, id uuid.UUID) (*models.Recommendation, error)
 	GetPendingRecommendations(ctx context.Context) ([]models.Recommendation, error)
 	ApproveRecommendation(ctx context.Context, id uuid.UUID) error
 	RejectRecommendation(ctx context.Context, id uuid.UUID) error
@@ -125,6 +126,20 @@ func (a *App) RejectRecommendation(id string) error {
 	}
 
 	return a.repo.RejectRecommendation(a.ctx, uuid)
+}
+
+// GetRecommendationByID returns a single recommendation by ID
+func (a *App) GetRecommendationByID(id string) (*models.Recommendation, error) {
+	if a.repo == nil {
+		return nil, fmt.Errorf("database not initialized")
+	}
+
+	uuid, err := ParseUUID(id)
+	if err != nil {
+		return nil, err
+	}
+
+	return a.repo.GetRecommendation(a.ctx, uuid)
 }
 
 // GetPositions returns all current positions

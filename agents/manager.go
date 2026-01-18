@@ -23,17 +23,38 @@ type PortfolioManagerRepository interface {
 
 // PortfolioManager orchestrates all agents and generates recommendations
 type PortfolioManager struct {
-	agents []Agent
-	repo   PortfolioManagerRepository
-	cfg    *config.Config
+	agents   []Agent
+	repo     PortfolioManagerRepository
+	cfg      *config.Config
+	strategy ActionStrategy
 }
 
 // NewPortfolioManager creates a new PortfolioManager
 func NewPortfolioManager(repo PortfolioManagerRepository, cfg *config.Config) *PortfolioManager {
+	strategy := createStrategyFromConfig(cfg)
 	return &PortfolioManager{
-		agents: make([]Agent, 0),
-		repo:   repo,
-		cfg:    cfg,
+		agents:   make([]Agent, 0),
+		repo:     repo,
+		cfg:      cfg,
+		strategy: strategy,
+	}
+}
+
+// createStrategyFromConfig creates the appropriate strategy based on config
+func createStrategyFromConfig(cfg *config.Config) ActionStrategy {
+	switch cfg.Agent.Strategy {
+	case "conservative":
+		return NewConservativeStrategy()
+	case "aggressive":
+		return NewAggressiveStrategy()
+	case "custom":
+		return NewCustomStrategy(
+			cfg.Agent.BuyThreshold,
+			cfg.Agent.SellThreshold,
+			cfg.Agent.MinConfidence,
+		)
+	default:
+		return NewDefaultStrategy()
 	}
 }
 
@@ -143,15 +164,15 @@ func (m *PortfolioManager) synthesizeRecommendation(symbol string, analyses []*A
 		finalScore = weightedScore / totalWeight
 	}
 
-	// Determine action based on score
-	action := ScoreToAction(finalScore)
-
 	// Calculate overall confidence
 	avgConfidence := 0.0
 	for _, analysis := range analyses {
 		avgConfidence += analysis.Confidence
 	}
 	avgConfidence /= float64(len(analyses))
+
+	// Determine action based on score using strategy
+	action := m.strategy.DetermineAction(finalScore, avgConfidence)
 
 	// Build combined reasoning
 	combinedReasoning := fmt.Sprintf(
@@ -199,4 +220,14 @@ func (m *PortfolioManager) Type() models.AgentType {
 // GetAgents returns all registered agents
 func (m *PortfolioManager) GetAgents() []Agent {
 	return m.agents
+}
+
+// GetStrategy returns the current action strategy
+func (m *PortfolioManager) GetStrategy() ActionStrategy {
+	return m.strategy
+}
+
+// SetStrategy sets a new action strategy
+func (m *PortfolioManager) SetStrategy(strategy ActionStrategy) {
+	m.strategy = strategy
 }

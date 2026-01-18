@@ -80,6 +80,7 @@ type AgentConfig struct {
 	BuyThreshold          float64 // for custom strategy
 	SellThreshold         float64 // for custom strategy
 	MinConfidence         float64 // for custom/conservative strategy
+	HealthCacheTTLSeconds int     // TTL for health check caching (default: 30)
 }
 
 // PositionSizingConfig holds position sizing configuration
@@ -144,6 +145,7 @@ func Load() (*Config, error) {
 			BuyThreshold:          getEnvFloatUnbounded("AGENT_BUY_THRESHOLD", 25),
 			SellThreshold:         getEnvFloatUnbounded("AGENT_SELL_THRESHOLD", -25),
 			MinConfidence:         getEnvFloatUnbounded("AGENT_MIN_CONFIDENCE", 0),
+			HealthCacheTTLSeconds: getEnvInt("AGENT_HEALTH_CACHE_TTL_SECONDS", 30),
 		},
 		PositionSizing: PositionSizingConfig{
 			MaxPositionPercent:   getEnvFloatRange("POSITION_MAX_PERCENT", 0.10, 0.01, 1.0),
@@ -335,6 +337,7 @@ func NewTestConfig() *Config {
 			BuyThreshold:          25,
 			SellThreshold:         -25,
 			MinConfidence:         0,
+			HealthCacheTTLSeconds: 30,
 		},
 		PositionSizing: PositionSizingConfig{
 			MaxPositionPercent:   0.10,

@@ -18,7 +18,6 @@ const (
 	ServiceAlphaVantage ServiceName = "alpha_vantage"
 	ServiceNewsAPI      ServiceName = "newsapi"
 	ServiceFMP          ServiceName = "fmp"
-	ServiceAWSBedrock   ServiceName = "aws_bedrock"
 )
 
 // APIKeyConfig represents configuration for a single API key
@@ -190,7 +189,7 @@ func (s *Store) GetMaskedSettings() map[ServiceName]*MaskedAPIKeyConfig {
 	result := make(map[ServiceName]*MaskedAPIKeyConfig)
 
 	// Include all known services
-	for _, service := range []ServiceName{ServiceOpenAI, ServiceAlpaca, ServiceAlphaVantage, ServiceNewsAPI, ServiceFMP, ServiceAWSBedrock} {
+	for _, service := range []ServiceName{ServiceOpenAI, ServiceAlpaca, ServiceAlphaVantage, ServiceNewsAPI, ServiceFMP} {
 		masked := &MaskedAPIKeyConfig{
 			ServiceName:  service,
 			IsConfigured: false,
@@ -261,8 +260,6 @@ func ServiceDisplayName(service ServiceName) string {
 		return "NewsAPI"
 	case ServiceFMP:
 		return "Financial Modeling Prep"
-	case ServiceAWSBedrock:
-		return "AWS Bedrock"
 	default:
 		return string(service)
 	}
@@ -281,8 +278,6 @@ func ServiceDescription(service ServiceName) string {
 		return "News articles for sentiment analysis"
 	case ServiceFMP:
 		return "Stock screening and additional fundamentals"
-	case ServiceAWSBedrock:
-		return "AWS-hosted AI models (Claude)"
 	default:
 		return ""
 	}

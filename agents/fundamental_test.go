@@ -52,7 +52,7 @@ func TestFundamentalAnalystResponse_Parsing(t *testing.T) {
 }
 
 func TestFundamentalAnalyst_Analyze_Success(t *testing.T) {
-	mockBedrock := &mockBedrockService{
+	mockLLM := &mockLLMService{
 		response: `{
 			"score": 65.0,
 			"confidence": 75.0,
@@ -75,7 +75,7 @@ func TestFundamentalAnalyst_Analyze_Success(t *testing.T) {
 		},
 	}
 
-	analyst := NewFundamentalAnalyst(mockBedrock, mockAlphaVantage)
+	analyst := NewFundamentalAnalyst(mockLLM, mockAlphaVantage)
 	ctx := context.Background()
 
 	analysis, err := analyst.Analyze(ctx, "AAPL")
@@ -109,7 +109,7 @@ func TestFundamentalAnalyst_Analyze_Success(t *testing.T) {
 }
 
 func TestFundamentalAnalyst_Analyze_AlphaVantageError(t *testing.T) {
-	mockBedrock := &mockBedrockService{
+	mockLLM := &mockLLMService{
 		response: `{"score": 50, "confidence": 50, "reasoning": "test", "key_factors": []}`,
 	}
 
@@ -117,7 +117,7 @@ func TestFundamentalAnalyst_Analyze_AlphaVantageError(t *testing.T) {
 		err: errors.New("API rate limit exceeded"),
 	}
 
-	analyst := NewFundamentalAnalyst(mockBedrock, mockAlphaVantage)
+	analyst := NewFundamentalAnalyst(mockLLM, mockAlphaVantage)
 	ctx := context.Background()
 
 	_, err := analyst.Analyze(ctx, "AAPL")
@@ -126,9 +126,9 @@ func TestFundamentalAnalyst_Analyze_AlphaVantageError(t *testing.T) {
 	}
 }
 
-func TestFundamentalAnalyst_Analyze_BedrockError(t *testing.T) {
-	mockBedrock := &mockBedrockService{
-		err: errors.New("Bedrock service unavailable"),
+func TestFundamentalAnalyst_Analyze_LLMError(t *testing.T) {
+	mockLLM := &mockLLMService{
+		err: errors.New("LLM service unavailable"),
 	}
 
 	mockAlphaVantage := &mockAlphaVantageService{
@@ -139,17 +139,17 @@ func TestFundamentalAnalyst_Analyze_BedrockError(t *testing.T) {
 		},
 	}
 
-	analyst := NewFundamentalAnalyst(mockBedrock, mockAlphaVantage)
+	analyst := NewFundamentalAnalyst(mockLLM, mockAlphaVantage)
 	ctx := context.Background()
 
 	_, err := analyst.Analyze(ctx, "AAPL")
 	if err == nil {
-		t.Error("Expected error when Bedrock fails")
+		t.Error("Expected error when LLM fails")
 	}
 }
 
 func TestFundamentalAnalyst_Analyze_InvalidJSON(t *testing.T) {
-	mockBedrock := &mockBedrockService{
+	mockLLM := &mockLLMService{
 		response: "This is not valid JSON, just plain text analysis",
 	}
 
@@ -161,7 +161,7 @@ func TestFundamentalAnalyst_Analyze_InvalidJSON(t *testing.T) {
 		},
 	}
 
-	analyst := NewFundamentalAnalyst(mockBedrock, mockAlphaVantage)
+	analyst := NewFundamentalAnalyst(mockLLM, mockAlphaVantage)
 	ctx := context.Background()
 
 	analysis, err := analyst.Analyze(ctx, "AAPL")
@@ -181,7 +181,7 @@ func TestFundamentalAnalyst_Analyze_InvalidJSON(t *testing.T) {
 }
 
 func TestFundamentalAnalyst_Analyze_ScoreNormalization(t *testing.T) {
-	mockBedrock := &mockBedrockService{
+	mockLLM := &mockLLMService{
 		response: `{
 			"score": 150.0,
 			"confidence": 120.0,
@@ -197,7 +197,7 @@ func TestFundamentalAnalyst_Analyze_ScoreNormalization(t *testing.T) {
 		},
 	}
 
-	analyst := NewFundamentalAnalyst(mockBedrock, mockAlphaVantage)
+	analyst := NewFundamentalAnalyst(mockLLM, mockAlphaVantage)
 	ctx := context.Background()
 
 	analysis, err := analyst.Analyze(ctx, "TEST")
@@ -256,21 +256,21 @@ func TestFundamentalAnalyst_GetMetadata(t *testing.T) {
 		t.Error("RequiredServices should not be empty")
 	}
 
-	// Check that required services include both bedrock and alpha_vantage
+	// Check that required services include both llm and alpha_vantage
 	hasAlphaVantage := false
-	hasBedrock := false
+	hasLLM := false
 	for _, svc := range metadata.RequiredServices {
 		if svc == "alpha_vantage" {
 			hasAlphaVantage = true
 		}
-		if svc == "bedrock" {
-			hasBedrock = true
+		if svc == "llm" {
+			hasLLM = true
 		}
 	}
 	if !hasAlphaVantage {
 		t.Error("RequiredServices should include alpha_vantage")
 	}
-	if !hasBedrock {
-		t.Error("RequiredServices should include bedrock")
+	if !hasLLM {
+		t.Error("RequiredServices should include llm")
 	}
 }

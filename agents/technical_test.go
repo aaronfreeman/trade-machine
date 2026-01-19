@@ -218,7 +218,7 @@ func TestNewTechnicalAnalyst(t *testing.T) {
 }
 
 func TestTechnicalAnalyst_Analyze_Success(t *testing.T) {
-	mockBedrock := &mockBedrockService{
+	mockLLM := &mockLLMService{
 		response: `{
 			"score": 55.0,
 			"confidence": 75.0,
@@ -244,7 +244,7 @@ func TestTechnicalAnalyst_Analyze_Success(t *testing.T) {
 		bars: bars,
 	}
 
-	analyst := NewTechnicalAnalyst(mockBedrock, mockAlpaca, config.NewTestConfig())
+	analyst := NewTechnicalAnalyst(mockLLM, mockAlpaca, config.NewTestConfig())
 	ctx := context.Background()
 
 	analysis, err := analyst.Analyze(ctx, "AAPL")
@@ -275,7 +275,7 @@ func TestTechnicalAnalyst_Analyze_Success(t *testing.T) {
 }
 
 func TestTechnicalAnalyst_Analyze_InsufficientData(t *testing.T) {
-	mockBedrock := &mockBedrockService{
+	mockLLM := &mockLLMService{
 		response: `{"score": 0, "confidence": 20, "reasoning": "test", "signals": []}`,
 	}
 
@@ -291,7 +291,7 @@ func TestTechnicalAnalyst_Analyze_InsufficientData(t *testing.T) {
 		bars: bars,
 	}
 
-	analyst := NewTechnicalAnalyst(mockBedrock, mockAlpaca, config.NewTestConfig())
+	analyst := NewTechnicalAnalyst(mockLLM, mockAlpaca, config.NewTestConfig())
 	ctx := context.Background()
 
 	analysis, err := analyst.Analyze(ctx, "NEWSTOCK")
@@ -311,7 +311,7 @@ func TestTechnicalAnalyst_Analyze_InsufficientData(t *testing.T) {
 }
 
 func TestTechnicalAnalyst_Analyze_AlpacaError(t *testing.T) {
-	mockBedrock := &mockBedrockService{
+	mockLLM := &mockLLMService{
 		response: `{"score": 0, "confidence": 50, "reasoning": "test", "signals": []}`,
 	}
 
@@ -319,7 +319,7 @@ func TestTechnicalAnalyst_Analyze_AlpacaError(t *testing.T) {
 		err: errors.New("Alpaca API unavailable"),
 	}
 
-	analyst := NewTechnicalAnalyst(mockBedrock, mockAlpaca, config.NewTestConfig())
+	analyst := NewTechnicalAnalyst(mockLLM, mockAlpaca, config.NewTestConfig())
 	ctx := context.Background()
 
 	_, err := analyst.Analyze(ctx, "AAPL")
@@ -328,9 +328,9 @@ func TestTechnicalAnalyst_Analyze_AlpacaError(t *testing.T) {
 	}
 }
 
-func TestTechnicalAnalyst_Analyze_BedrockError(t *testing.T) {
-	mockBedrock := &mockBedrockService{
-		err: errors.New("Bedrock service unavailable"),
+func TestTechnicalAnalyst_Analyze_LLMError(t *testing.T) {
+	mockLLM := &mockLLMService{
+		err: errors.New("LLM service unavailable"),
 	}
 
 	bars := make([]marketdata.Bar, 100)
@@ -345,17 +345,17 @@ func TestTechnicalAnalyst_Analyze_BedrockError(t *testing.T) {
 		bars: bars,
 	}
 
-	analyst := NewTechnicalAnalyst(mockBedrock, mockAlpaca, config.NewTestConfig())
+	analyst := NewTechnicalAnalyst(mockLLM, mockAlpaca, config.NewTestConfig())
 	ctx := context.Background()
 
 	_, err := analyst.Analyze(ctx, "AAPL")
 	if err == nil {
-		t.Error("Expected error when Bedrock fails")
+		t.Error("Expected error when LLM fails")
 	}
 }
 
 func TestTechnicalAnalyst_Analyze_InvalidJSON(t *testing.T) {
-	mockBedrock := &mockBedrockService{
+	mockLLM := &mockLLMService{
 		response: "Plain text technical analysis, not JSON",
 	}
 
@@ -371,7 +371,7 @@ func TestTechnicalAnalyst_Analyze_InvalidJSON(t *testing.T) {
 		bars: bars,
 	}
 
-	analyst := NewTechnicalAnalyst(mockBedrock, mockAlpaca, config.NewTestConfig())
+	analyst := NewTechnicalAnalyst(mockLLM, mockAlpaca, config.NewTestConfig())
 	ctx := context.Background()
 
 	analysis, err := analyst.Analyze(ctx, "AAPL")
@@ -430,21 +430,21 @@ func TestTechnicalAnalyst_GetMetadata(t *testing.T) {
 		t.Error("RequiredServices should not be empty")
 	}
 
-	// Check that required services include both bedrock and alpaca
+	// Check that required services include both llm and alpaca
 	hasAlpaca := false
-	hasBedrock := false
+	hasLLM := false
 	for _, svc := range metadata.RequiredServices {
 		if svc == "alpaca" {
 			hasAlpaca = true
 		}
-		if svc == "bedrock" {
-			hasBedrock = true
+		if svc == "llm" {
+			hasLLM = true
 		}
 	}
 	if !hasAlpaca {
 		t.Error("RequiredServices should include alpaca")
 	}
-	if !hasBedrock {
-		t.Error("RequiredServices should include bedrock")
+	if !hasLLM {
+		t.Error("RequiredServices should include llm")
 	}
 }

@@ -37,14 +37,9 @@ func clearEnv(t *testing.T, keys []string) {
 
 var allEnvKeys = []string{
 	"DATABASE_URL",
-	"LLM_PROVIDER",
 	"OPENAI_API_KEY",
 	"OPENAI_MODEL",
 	"OPENAI_MAX_TOKENS",
-	"AWS_REGION",
-	"BEDROCK_MODEL_ID",
-	"BEDROCK_MAX_TOKENS",
-	"BEDROCK_ANTHROPIC_VERSION",
 	"ALPACA_API_KEY",
 	"ALPACA_API_SECRET",
 	"ALPACA_BASE_URL",
@@ -70,12 +65,6 @@ func TestLoad_Defaults(t *testing.T) {
 	}
 
 	// Check defaults
-	if cfg.AWS.BedrockMaxTokens != 4096 {
-		t.Errorf("expected BedrockMaxTokens=4096, got %d", cfg.AWS.BedrockMaxTokens)
-	}
-	if cfg.AWS.AnthropicVersion != "bedrock-2023-05-31" {
-		t.Errorf("expected AnthropicVersion='bedrock-2023-05-31', got %s", cfg.AWS.AnthropicVersion)
-	}
 	if cfg.Alpaca.BaseURL != "https://paper-api.alpaca.markets" {
 		t.Errorf("expected Alpaca.BaseURL='https://paper-api.alpaca.markets', got %s", cfg.Alpaca.BaseURL)
 	}
@@ -108,9 +97,6 @@ func TestLoad_CustomValues(t *testing.T) {
 	clearEnv(t, allEnvKeys)
 
 	os.Setenv("DATABASE_URL", "postgres://localhost/test")
-	os.Setenv("AWS_REGION", "us-west-2")
-	os.Setenv("BEDROCK_MODEL_ID", "anthropic.claude-3-sonnet")
-	os.Setenv("BEDROCK_MAX_TOKENS", "8192")
 	os.Setenv("ALPACA_API_KEY", "test-key")
 	os.Setenv("ALPACA_API_SECRET", "test-secret")
 	os.Setenv("ALPACA_BASE_URL", "https://api.alpaca.markets")
@@ -131,15 +117,6 @@ func TestLoad_CustomValues(t *testing.T) {
 
 	if cfg.Database.URL != "postgres://localhost/test" {
 		t.Errorf("expected Database.URL='postgres://localhost/test', got %s", cfg.Database.URL)
-	}
-	if cfg.AWS.Region != "us-west-2" {
-		t.Errorf("expected AWS.Region='us-west-2', got %s", cfg.AWS.Region)
-	}
-	if cfg.AWS.BedrockModelID != "anthropic.claude-3-sonnet" {
-		t.Errorf("expected AWS.BedrockModelID='anthropic.claude-3-sonnet', got %s", cfg.AWS.BedrockModelID)
-	}
-	if cfg.AWS.BedrockMaxTokens != 8192 {
-		t.Errorf("expected BedrockMaxTokens=8192, got %d", cfg.AWS.BedrockMaxTokens)
 	}
 	if cfg.Alpaca.APIKey != "test-key" {
 		t.Errorf("expected Alpaca.APIKey='test-key', got %s", cfg.Alpaca.APIKey)
@@ -193,9 +170,6 @@ func TestValidate_WeightRange(t *testing.T) {
 			ConcurrencyLimit:      3,
 			TechnicalLookbackDays: 100,
 		},
-		AWS: AWSConfig{
-			BedrockMaxTokens: 4096,
-		},
 	}
 
 	err := cfg.Validate()
@@ -225,7 +199,7 @@ func TestValidate_PositiveIntegers(t *testing.T) {
 		},
 		{
 			name:    "invalid number uses default",
-			envKey:  "BEDROCK_MAX_TOKENS",
+			envKey:  "OPENAI_MAX_TOKENS",
 			envVal:  "not-a-number",
 			wantErr: false, // uses default
 		},
@@ -261,25 +235,6 @@ func TestHasDatabase(t *testing.T) {
 	cfg.Database.URL = "postgres://localhost/test"
 	if !cfg.HasDatabase() {
 		t.Error("expected HasDatabase() to return true for non-empty URL")
-	}
-}
-
-func TestHasBedrock(t *testing.T) {
-	cfg := &Config{
-		AWS: AWSConfig{Region: "", BedrockModelID: ""},
-	}
-	if cfg.HasBedrock() {
-		t.Error("expected HasBedrock() to return false for empty config")
-	}
-
-	cfg.AWS.Region = "us-west-2"
-	if cfg.HasBedrock() {
-		t.Error("expected HasBedrock() to return false without model ID")
-	}
-
-	cfg.AWS.BedrockModelID = "anthropic.claude-3-sonnet"
-	if !cfg.HasBedrock() {
-		t.Error("expected HasBedrock() to return true for complete config")
 	}
 }
 
@@ -431,132 +386,6 @@ func TestHasOpenAI(t *testing.T) {
 	}
 }
 
-func TestHasLLM(t *testing.T) {
-	tests := []struct {
-		name     string
-		openai   OpenAIConfig
-		aws      AWSConfig
-		expected bool
-	}{
-		{
-			name:     "No LLM configured",
-			openai:   OpenAIConfig{APIKey: ""},
-			aws:      AWSConfig{Region: "", BedrockModelID: ""},
-			expected: false,
-		},
-		{
-			name:     "OpenAI configured",
-			openai:   OpenAIConfig{APIKey: "sk-test"},
-			aws:      AWSConfig{Region: "", BedrockModelID: ""},
-			expected: true,
-		},
-		{
-			name:     "Bedrock configured",
-			openai:   OpenAIConfig{APIKey: ""},
-			aws:      AWSConfig{Region: "us-east-1", BedrockModelID: "claude-3"},
-			expected: true,
-		},
-		{
-			name:     "Both configured",
-			openai:   OpenAIConfig{APIKey: "sk-test"},
-			aws:      AWSConfig{Region: "us-east-1", BedrockModelID: "claude-3"},
-			expected: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := &Config{
-				OpenAI: tt.openai,
-				AWS:    tt.aws,
-			}
-			if got := cfg.HasLLM(); got != tt.expected {
-				t.Errorf("HasLLM() = %v, want %v", got, tt.expected)
-			}
-		})
-	}
-}
-
-func TestUsesOpenAI(t *testing.T) {
-	tests := []struct {
-		name        string
-		llmProvider string
-		openai      OpenAIConfig
-		expected    bool
-	}{
-		{
-			name:        "Provider openai with key",
-			llmProvider: "openai",
-			openai:      OpenAIConfig{APIKey: "sk-test"},
-			expected:    true,
-		},
-		{
-			name:        "Provider openai without key",
-			llmProvider: "openai",
-			openai:      OpenAIConfig{APIKey: ""},
-			expected:    false,
-		},
-		{
-			name:        "Provider bedrock with openai key",
-			llmProvider: "bedrock",
-			openai:      OpenAIConfig{APIKey: "sk-test"},
-			expected:    false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := &Config{
-				LLMProvider: tt.llmProvider,
-				OpenAI:      tt.openai,
-			}
-			if got := cfg.UsesOpenAI(); got != tt.expected {
-				t.Errorf("UsesOpenAI() = %v, want %v", got, tt.expected)
-			}
-		})
-	}
-}
-
-func TestUsesBedrock(t *testing.T) {
-	tests := []struct {
-		name        string
-		llmProvider string
-		aws         AWSConfig
-		expected    bool
-	}{
-		{
-			name:        "Provider bedrock with config",
-			llmProvider: "bedrock",
-			aws:         AWSConfig{Region: "us-east-1", BedrockModelID: "claude-3"},
-			expected:    true,
-		},
-		{
-			name:        "Provider bedrock without config",
-			llmProvider: "bedrock",
-			aws:         AWSConfig{Region: "", BedrockModelID: ""},
-			expected:    false,
-		},
-		{
-			name:        "Provider openai with bedrock config",
-			llmProvider: "openai",
-			aws:         AWSConfig{Region: "us-east-1", BedrockModelID: "claude-3"},
-			expected:    false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			cfg := &Config{
-				LLMProvider: tt.llmProvider,
-				AWS:         tt.aws,
-			}
-			if got := cfg.UsesBedrock(); got != tt.expected {
-				t.Errorf("UsesBedrock() = %v, want %v", got, tt.expected)
-			}
-		})
-	}
-}
-
 func TestLoad_OpenAIDefaults(t *testing.T) {
 	saved := saveEnv(t, allEnvKeys)
 	defer restoreEnv(t, saved)
@@ -568,9 +397,6 @@ func TestLoad_OpenAIDefaults(t *testing.T) {
 	}
 
 	// Check OpenAI defaults
-	if cfg.LLMProvider != "openai" {
-		t.Errorf("expected LLMProvider='openai', got %s", cfg.LLMProvider)
-	}
 	if cfg.OpenAI.Model != "gpt-4o" {
 		t.Errorf("expected OpenAI.Model='gpt-4o', got %s", cfg.OpenAI.Model)
 	}
@@ -584,7 +410,6 @@ func TestLoad_OpenAICustomValues(t *testing.T) {
 	defer restoreEnv(t, saved)
 	clearEnv(t, allEnvKeys)
 
-	os.Setenv("LLM_PROVIDER", "openai")
 	os.Setenv("OPENAI_API_KEY", "sk-test-key")
 	os.Setenv("OPENAI_MODEL", "gpt-4-turbo")
 	os.Setenv("OPENAI_MAX_TOKENS", "2048")
@@ -594,9 +419,6 @@ func TestLoad_OpenAICustomValues(t *testing.T) {
 		t.Fatalf("Load() with OpenAI custom values failed: %v", err)
 	}
 
-	if cfg.LLMProvider != "openai" {
-		t.Errorf("expected LLMProvider='openai', got %s", cfg.LLMProvider)
-	}
 	if cfg.OpenAI.APIKey != "sk-test-key" {
 		t.Errorf("expected OpenAI.APIKey='sk-test-key', got %s", cfg.OpenAI.APIKey)
 	}
@@ -611,9 +433,6 @@ func TestLoad_OpenAICustomValues(t *testing.T) {
 func TestNewTestConfig_IncludesOpenAI(t *testing.T) {
 	cfg := NewTestConfig()
 
-	if cfg.LLMProvider != "openai" {
-		t.Errorf("expected LLMProvider='openai', got %s", cfg.LLMProvider)
-	}
 	if cfg.OpenAI.Model != "gpt-4o" {
 		t.Errorf("expected OpenAI.Model='gpt-4o', got %s", cfg.OpenAI.Model)
 	}

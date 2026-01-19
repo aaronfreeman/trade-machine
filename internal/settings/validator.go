@@ -54,9 +54,6 @@ func (v *Validator) ValidateAPIKey(ctx context.Context, config *APIKeyConfig) (*
 		err = v.validateNewsAPI(ctx, config)
 	case ServiceFMP:
 		err = v.validateFMP(ctx, config)
-	case ServiceAWSBedrock:
-		// AWS Bedrock validation requires AWS SDK - just check fields exist
-		err = v.validateAWSBedrock(ctx, config)
 	default:
 		err = fmt.Errorf("unknown service: %s", config.ServiceName)
 	}
@@ -241,17 +238,3 @@ func (v *Validator) validateFMP(ctx context.Context, config *APIKeyConfig) error
 	return nil
 }
 
-// validateAWSBedrock validates AWS Bedrock configuration (field presence only)
-func (v *Validator) validateAWSBedrock(ctx context.Context, config *APIKeyConfig) error {
-	if config.Region == "" {
-		return errors.New("AWS region is required")
-	}
-	if config.ModelID == "" {
-		return errors.New("Bedrock model ID is required")
-	}
-
-	// Note: Full AWS validation requires the AWS SDK and credentials
-	// This is a basic field validation - actual connectivity testing
-	// would need to be done through the Bedrock service
-	return nil
-}

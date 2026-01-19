@@ -56,14 +56,14 @@ func main() {
 	}
 
 	// Initialize services (with nil checks for graceful degradation)
-	var llmService services.BedrockServiceInterface
+	var llmService services.LLMService
 	var alpacaService *services.AlpacaService
 	var alphaVantageService *services.AlphaVantageService
 	var newsAPIService *services.NewsAPIService
 	var fmpService *services.FMPService
 
-	// Initialize LLM Service (OpenAI preferred, Bedrock as fallback)
-	if cfg.UsesOpenAI() {
+	// Initialize OpenAI Service
+	if cfg.HasOpenAI() {
 		openaiService, err := services.NewOpenAIService(cfg)
 		if err != nil {
 			observability.Warn("failed to initialize OpenAI service", "error", err)
@@ -71,36 +71,10 @@ func main() {
 			llmService = openaiService
 			observability.Info("initialized OpenAI service", "model", cfg.OpenAI.Model)
 		}
-	} else if cfg.UsesBedrock() {
-		bedrockService, err := services.NewBedrockService(ctx, cfg)
-		if err != nil {
-			observability.Warn("failed to initialize Bedrock service", "error", err)
-		} else {
-			llmService = bedrockService
-			observability.Info("initialized Bedrock service", "model", cfg.AWS.BedrockModelID)
-		}
-	} else if cfg.HasOpenAI() {
-		// Fallback: try OpenAI if API key is set but LLM_PROVIDER is not explicitly "openai"
-		openaiService, err := services.NewOpenAIService(cfg)
-		if err != nil {
-			observability.Warn("failed to initialize OpenAI service (fallback)", "error", err)
-		} else {
-			llmService = openaiService
-			observability.Info("initialized OpenAI service (fallback)", "model", cfg.OpenAI.Model)
-		}
-	} else if cfg.HasBedrock() {
-		// Fallback: try Bedrock if AWS config is set
-		bedrockService, err := services.NewBedrockService(ctx, cfg)
-		if err != nil {
-			observability.Warn("failed to initialize Bedrock service (fallback)", "error", err)
-		} else {
-			llmService = bedrockService
-			observability.Info("initialized Bedrock service (fallback)", "model", cfg.AWS.BedrockModelID)
-		}
 	}
 
 	if llmService == nil {
-		observability.Warn("no LLM service configured, AI agents disabled - set OPENAI_API_KEY or AWS credentials")
+		observability.Warn("no LLM service configured, AI agents disabled - set OPENAI_API_KEY")
 	}
 
 	// Alpaca Service

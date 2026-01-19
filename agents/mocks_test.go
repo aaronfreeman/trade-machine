@@ -11,23 +11,23 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-type mockBedrockService struct {
+type mockLLMService struct {
 	response string
 	err      error
 }
 
-func (m *mockBedrockService) InvokeWithPrompt(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
+func (m *mockLLMService) InvokeWithPrompt(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
 	if m.err != nil {
 		return "", m.err
 	}
 	return m.response, nil
 }
 
-func (m *mockBedrockService) InvokeStructured(ctx context.Context, systemPrompt, userPrompt string, result interface{}) error {
+func (m *mockLLMService) InvokeStructured(ctx context.Context, systemPrompt, userPrompt string, result interface{}) error {
 	return m.err
 }
 
-func (m *mockBedrockService) Chat(ctx context.Context, systemPrompt string, messages []services.ClaudeMessage) (string, error) {
+func (m *mockLLMService) Chat(ctx context.Context, systemPrompt string, messages []services.ChatMessage) (string, error) {
 	if m.err != nil {
 		return "", m.err
 	}

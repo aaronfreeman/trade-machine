@@ -162,8 +162,8 @@ func TestGetMaskedSettings(t *testing.T) {
 	masked := store.GetMaskedSettings()
 
 	// Should have all services
-	if len(masked) != 6 {
-		t.Errorf("GetMaskedSettings() returned %d services, want 6", len(masked))
+	if len(masked) != 5 {
+		t.Errorf("GetMaskedSettings() returned %d services, want 5", len(masked))
 	}
 
 	// OpenAI should be configured and masked
@@ -328,7 +328,6 @@ func TestServiceDisplayName(t *testing.T) {
 		{ServiceAlphaVantage, "Alpha Vantage"},
 		{ServiceNewsAPI, "NewsAPI"},
 		{ServiceFMP, "Financial Modeling Prep"},
-		{ServiceAWSBedrock, "AWS Bedrock"},
 		{ServiceName("unknown"), "unknown"},
 	}
 
@@ -352,7 +351,6 @@ func TestServiceDescription(t *testing.T) {
 		{ServiceAlphaVantage, true},
 		{ServiceNewsAPI, true},
 		{ServiceFMP, true},
-		{ServiceAWSBedrock, true},
 		{ServiceName("unknown"), false},
 	}
 

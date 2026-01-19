@@ -38,24 +38,24 @@ type FundamentalAnalystResponse struct {
 
 // FundamentalAnalyst analyzes company fundamentals
 type FundamentalAnalyst struct {
-	bedrock      BedrockServiceInterface
+	llm LLMService
 	alphaVantage AlphaVantageServiceInterface
 	healthCache  *HealthCache
 }
 
 // NewFundamentalAnalyst creates a new FundamentalAnalyst
-func NewFundamentalAnalyst(bedrock BedrockServiceInterface, alphaVantage AlphaVantageServiceInterface) *FundamentalAnalyst {
+func NewFundamentalAnalyst(llm LLMService, alphaVantage AlphaVantageServiceInterface) *FundamentalAnalyst {
 	return &FundamentalAnalyst{
-		bedrock:      bedrock,
+		llm:     llm,
 		alphaVantage: alphaVantage,
 		healthCache:  NewHealthCache(DefaultHealthCacheTTL),
 	}
 }
 
 // NewFundamentalAnalystWithCacheTTL creates a new FundamentalAnalyst with a custom health cache TTL
-func NewFundamentalAnalystWithCacheTTL(bedrock BedrockServiceInterface, alphaVantage AlphaVantageServiceInterface, cacheTTL time.Duration) *FundamentalAnalyst {
+func NewFundamentalAnalystWithCacheTTL(llm LLMService, alphaVantage AlphaVantageServiceInterface, cacheTTL time.Duration) *FundamentalAnalyst {
 	return &FundamentalAnalyst{
-		bedrock:      bedrock,
+		llm:     llm,
 		alphaVantage: alphaVantage,
 		healthCache:  NewHealthCache(cacheTTL),
 	}
@@ -92,7 +92,7 @@ Provide your analysis.`,
 	)
 
 	// Call Claude via Bedrock
-	response, err := a.bedrock.InvokeWithPrompt(ctx, fundamentalSystemPrompt, userPrompt)
+	response, err := a.llm.InvokeWithPrompt(ctx, fundamentalSystemPrompt, userPrompt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to invoke bedrock: %w", err)
 	}
@@ -167,6 +167,6 @@ func (a *FundamentalAnalyst) GetMetadata() AgentMetadata {
 	return AgentMetadata{
 		Description:      "Analyzes company fundamentals including P/E ratio, EPS, market cap, and dividend yield",
 		Version:          "1.0.0",
-		RequiredServices: []string{"bedrock", "alpha_vantage"},
+		RequiredServices: []string{"llm", "alpha_vantage"},
 	}
 }

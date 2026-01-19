@@ -42,24 +42,24 @@ type NewsAnalystResponse struct {
 
 // NewsAnalyst analyzes news sentiment
 type NewsAnalyst struct {
-	bedrock     BedrockServiceInterface
+	llm LLMService
 	newsAPI     NewsAPIServiceInterface
 	healthCache *HealthCache
 }
 
 // NewNewsAnalyst creates a new NewsAnalyst
-func NewNewsAnalyst(bedrock BedrockServiceInterface, newsAPI NewsAPIServiceInterface) *NewsAnalyst {
+func NewNewsAnalyst(llm LLMService, newsAPI NewsAPIServiceInterface) *NewsAnalyst {
 	return &NewsAnalyst{
-		bedrock:     bedrock,
+		llm:     llm,
 		newsAPI:     newsAPI,
 		healthCache: NewHealthCache(DefaultHealthCacheTTL),
 	}
 }
 
 // NewNewsAnalystWithCacheTTL creates a new NewsAnalyst with a custom health cache TTL
-func NewNewsAnalystWithCacheTTL(bedrock BedrockServiceInterface, newsAPI NewsAPIServiceInterface, cacheTTL time.Duration) *NewsAnalyst {
+func NewNewsAnalystWithCacheTTL(llm LLMService, newsAPI NewsAPIServiceInterface, cacheTTL time.Duration) *NewsAnalyst {
 	return &NewsAnalyst{
-		bedrock:     bedrock,
+		llm:     llm,
 		newsAPI:     newsAPI,
 		healthCache: NewHealthCache(cacheTTL),
 	}
@@ -101,7 +101,7 @@ func (a *NewsAnalyst) Analyze(ctx context.Context, symbol string) (*Analysis, er
 	sb.WriteString("Provide your sentiment analysis.")
 
 	// Call Claude via Bedrock
-	response, err := a.bedrock.InvokeWithPrompt(ctx, newsSystemPrompt, sb.String())
+	response, err := a.llm.InvokeWithPrompt(ctx, newsSystemPrompt, sb.String())
 	if err != nil {
 		return nil, fmt.Errorf("failed to invoke bedrock: %w", err)
 	}
@@ -175,6 +175,6 @@ func (a *NewsAnalyst) GetMetadata() AgentMetadata {
 	return AgentMetadata{
 		Description:      "Analyzes recent news articles to determine market sentiment",
 		Version:          "1.0.0",
-		RequiredServices: []string{"bedrock", "newsapi"},
+		RequiredServices: []string{"llm", "newsapi"},
 	}
 }

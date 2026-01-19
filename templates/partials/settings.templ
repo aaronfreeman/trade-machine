@@ -18,22 +18,19 @@ templ SettingsForm(services map[settings.ServiceName]*settings.MaskedAPIKeyConfi
 
 	<div class="row g-4">
 		<!-- OpenAI -->
-		@ServiceCard(settings.ServiceOpenAI, services[settings.ServiceOpenAI], true, false, false)
+		@ServiceCard(settings.ServiceOpenAI, services[settings.ServiceOpenAI], true, false)
 
 		<!-- Alpaca Markets -->
-		@ServiceCard(settings.ServiceAlpaca, services[settings.ServiceAlpaca], true, true, false)
+		@ServiceCard(settings.ServiceAlpaca, services[settings.ServiceAlpaca], true, true)
 
 		<!-- Alpha Vantage -->
-		@ServiceCard(settings.ServiceAlphaVantage, services[settings.ServiceAlphaVantage], true, false, false)
+		@ServiceCard(settings.ServiceAlphaVantage, services[settings.ServiceAlphaVantage], true, false)
 
 		<!-- NewsAPI -->
-		@ServiceCard(settings.ServiceNewsAPI, services[settings.ServiceNewsAPI], true, false, false)
+		@ServiceCard(settings.ServiceNewsAPI, services[settings.ServiceNewsAPI], true, false)
 
 		<!-- FMP -->
-		@ServiceCard(settings.ServiceFMP, services[settings.ServiceFMP], true, false, false)
-
-		<!-- AWS Bedrock -->
-		@ServiceCard(settings.ServiceAWSBedrock, services[settings.ServiceAWSBedrock], false, false, true)
+		@ServiceCard(settings.ServiceFMP, services[settings.ServiceFMP], true, false)
 	</div>
 
 	<div class="card mt-4">
@@ -46,7 +43,7 @@ templ SettingsForm(services map[settings.ServiceName]*settings.MaskedAPIKeyConfi
 				API keys are stored locally in an encrypted file on your computer. They are never sent to any server except the respective API providers.
 			</p>
 			<p class="text-muted mb-0">
-				<strong>Required for analysis:</strong> At least one AI provider (OpenAI or AWS Bedrock), Alpaca, Alpha Vantage, and NewsAPI.
+				<strong>Required for analysis:</strong> OpenAI, Alpaca, Alpha Vantage, and NewsAPI.
 				<br/>
 				<strong>Required for screening:</strong> FMP (Financial Modeling Prep).
 			</p>
@@ -55,7 +52,7 @@ templ SettingsForm(services map[settings.ServiceName]*settings.MaskedAPIKeyConfi
 }
 
 // ServiceCard renders a single service configuration card
-templ ServiceCard(service settings.ServiceName, config *settings.MaskedAPIKeyConfig, needsAPIKey bool, needsSecret bool, needsRegion bool) {
+templ ServiceCard(service settings.ServiceName, config *settings.MaskedAPIKeyConfig, needsAPIKey bool, needsSecret bool) {
 	<div class="col-md-6">
 		<div class="card h-100">
 			<div class="card-header d-flex justify-content-between align-items-center">
@@ -116,30 +113,6 @@ templ ServiceCard(service settings.ServiceName, config *settings.MaskedAPIKeyCon
 								value={ getConfigValue(config, "base_url") }
 							/>
 							<small class="text-muted">Leave empty for paper trading, or use live URL for real trading</small>
-						</div>
-					}
-
-					if needsRegion {
-						<div class="mb-3">
-							<label class="form-label">AWS Region</label>
-							<input
-								type="text"
-								class="form-control"
-								name="region"
-								placeholder="us-east-1"
-								value={ getConfigValue(config, "region") }
-							/>
-						</div>
-
-						<div class="mb-3">
-							<label class="form-label">Model ID</label>
-							<input
-								type="text"
-								class="form-control"
-								name="model_id"
-								placeholder="anthropic.claude-3-sonnet-20240229-v1:0"
-								value={ getConfigValue(config, "model_id") }
-							/>
 						</div>
 					}
 

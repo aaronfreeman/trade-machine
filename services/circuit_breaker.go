@@ -188,7 +188,7 @@ const (
 	BreakerAlphaVantage = "alphavantage"
 	BreakerNewsAPI      = "newsapi"
 	BreakerAlpaca       = "alpaca"
-	BreakerBedrock      = "bedrock"
+	BreakerOpenAI       = "openai"
 	BreakerFMP          = "fmp"
 )
 

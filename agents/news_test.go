@@ -54,7 +54,7 @@ func TestNewsAnalystResponse_Parsing(t *testing.T) {
 }
 
 func TestNewsAnalyst_Analyze_Success(t *testing.T) {
-	mockBedrock := &mockBedrockService{
+	mockLLM := &mockLLMService{
 		response: `{
 			"score": 70.0,
 			"confidence": 80.0,
@@ -85,7 +85,7 @@ func TestNewsAnalyst_Analyze_Success(t *testing.T) {
 		},
 	}
 
-	analyst := NewNewsAnalyst(mockBedrock, mockNewsAPI)
+	analyst := NewNewsAnalyst(mockLLM, mockNewsAPI)
 	ctx := context.Background()
 
 	analysis, err := analyst.Analyze(ctx, "AAPL")
@@ -116,7 +116,7 @@ func TestNewsAnalyst_Analyze_Success(t *testing.T) {
 }
 
 func TestNewsAnalyst_Analyze_NoArticles(t *testing.T) {
-	mockBedrock := &mockBedrockService{
+	mockLLM := &mockLLMService{
 		response: `{"score": 0, "confidence": 20, "reasoning": "No news", "key_themes": [], "notable_articles": []}`,
 	}
 
@@ -124,7 +124,7 @@ func TestNewsAnalyst_Analyze_NoArticles(t *testing.T) {
 		articles: []models.NewsArticle{},
 	}
 
-	analyst := NewNewsAnalyst(mockBedrock, mockNewsAPI)
+	analyst := NewNewsAnalyst(mockLLM, mockNewsAPI)
 	ctx := context.Background()
 
 	analysis, err := analyst.Analyze(ctx, "UNKNOWN")
@@ -144,7 +144,7 @@ func TestNewsAnalyst_Analyze_NoArticles(t *testing.T) {
 }
 
 func TestNewsAnalyst_Analyze_NewsAPIError(t *testing.T) {
-	mockBedrock := &mockBedrockService{
+	mockLLM := &mockLLMService{
 		response: `{"score": 0, "confidence": 50, "reasoning": "test", "key_themes": [], "notable_articles": []}`,
 	}
 
@@ -152,7 +152,7 @@ func TestNewsAnalyst_Analyze_NewsAPIError(t *testing.T) {
 		err: errors.New("API rate limit exceeded"),
 	}
 
-	analyst := NewNewsAnalyst(mockBedrock, mockNewsAPI)
+	analyst := NewNewsAnalyst(mockLLM, mockNewsAPI)
 	ctx := context.Background()
 
 	_, err := analyst.Analyze(ctx, "AAPL")
@@ -161,9 +161,9 @@ func TestNewsAnalyst_Analyze_NewsAPIError(t *testing.T) {
 	}
 }
 
-func TestNewsAnalyst_Analyze_BedrockError(t *testing.T) {
-	mockBedrock := &mockBedrockService{
-		err: errors.New("Bedrock service unavailable"),
+func TestNewsAnalyst_Analyze_LLMError(t *testing.T) {
+	mockLLM := &mockLLMService{
+		err: errors.New("LLM service unavailable"),
 	}
 
 	mockNewsAPI := &mockNewsAPIService{
@@ -172,17 +172,17 @@ func TestNewsAnalyst_Analyze_BedrockError(t *testing.T) {
 		},
 	}
 
-	analyst := NewNewsAnalyst(mockBedrock, mockNewsAPI)
+	analyst := NewNewsAnalyst(mockLLM, mockNewsAPI)
 	ctx := context.Background()
 
 	_, err := analyst.Analyze(ctx, "AAPL")
 	if err == nil {
-		t.Error("Expected error when Bedrock fails")
+		t.Error("Expected error when LLM fails")
 	}
 }
 
 func TestNewsAnalyst_Analyze_InvalidJSON(t *testing.T) {
-	mockBedrock := &mockBedrockService{
+	mockLLM := &mockLLMService{
 		response: "This is plain text analysis, not JSON",
 	}
 
@@ -192,7 +192,7 @@ func TestNewsAnalyst_Analyze_InvalidJSON(t *testing.T) {
 		},
 	}
 
-	analyst := NewNewsAnalyst(mockBedrock, mockNewsAPI)
+	analyst := NewNewsAnalyst(mockLLM, mockNewsAPI)
 	ctx := context.Background()
 
 	analysis, err := analyst.Analyze(ctx, "AAPL")
@@ -250,21 +250,21 @@ func TestNewsAnalyst_GetMetadata(t *testing.T) {
 		t.Error("RequiredServices should not be empty")
 	}
 
-	// Check that required services include both bedrock and newsapi
+	// Check that required services include both llm and newsapi
 	hasNewsAPI := false
-	hasBedrock := false
+	hasLLM := false
 	for _, svc := range metadata.RequiredServices {
 		if svc == "newsapi" {
 			hasNewsAPI = true
 		}
-		if svc == "bedrock" {
-			hasBedrock = true
+		if svc == "llm" {
+			hasLLM = true
 		}
 	}
 	if !hasNewsAPI {
 		t.Error("RequiredServices should include newsapi")
 	}
-	if !hasBedrock {
-		t.Error("RequiredServices should include bedrock")
+	if !hasLLM {
+		t.Error("RequiredServices should include llm")
 	}
 }

@@ -47,16 +47,16 @@ type TechnicalAnalystResponse struct {
 
 // TechnicalAnalyst analyzes price action and technical indicators
 type TechnicalAnalyst struct {
-	bedrock      BedrockServiceInterface
+	llm LLMService
 	alpaca       AlpacaServiceInterface
 	lookbackDays int
 	healthCache  *HealthCache
 }
 
 // NewTechnicalAnalyst creates a new TechnicalAnalyst
-func NewTechnicalAnalyst(bedrock BedrockServiceInterface, alpaca AlpacaServiceInterface, cfg *config.Config) *TechnicalAnalyst {
+func NewTechnicalAnalyst(llm LLMService, alpaca AlpacaServiceInterface, cfg *config.Config) *TechnicalAnalyst {
 	return &TechnicalAnalyst{
-		bedrock:      bedrock,
+		llm:     llm,
 		alpaca:       alpaca,
 		lookbackDays: cfg.Agent.TechnicalLookbackDays,
 		healthCache:  NewHealthCache(DefaultHealthCacheTTL),
@@ -64,9 +64,9 @@ func NewTechnicalAnalyst(bedrock BedrockServiceInterface, alpaca AlpacaServiceIn
 }
 
 // NewTechnicalAnalystWithCacheTTL creates a new TechnicalAnalyst with a custom health cache TTL
-func NewTechnicalAnalystWithCacheTTL(bedrock BedrockServiceInterface, alpaca AlpacaServiceInterface, cfg *config.Config, cacheTTL time.Duration) *TechnicalAnalyst {
+func NewTechnicalAnalystWithCacheTTL(llm LLMService, alpaca AlpacaServiceInterface, cfg *config.Config, cacheTTL time.Duration) *TechnicalAnalyst {
 	return &TechnicalAnalyst{
-		bedrock:      bedrock,
+		llm:     llm,
 		alpaca:       alpaca,
 		lookbackDays: cfg.Agent.TechnicalLookbackDays,
 		healthCache:  NewHealthCache(cacheTTL),
@@ -139,7 +139,7 @@ Provide your technical analysis.`,
 	)
 
 	// Call Claude via Bedrock
-	response, err := a.bedrock.InvokeWithPrompt(ctx, technicalSystemPrompt, userPrompt)
+	response, err := a.llm.InvokeWithPrompt(ctx, technicalSystemPrompt, userPrompt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to invoke bedrock: %w", err)
 	}
@@ -333,6 +333,6 @@ func (a *TechnicalAnalyst) GetMetadata() AgentMetadata {
 	return AgentMetadata{
 		Description:      "Analyzes price action and technical indicators including RSI, MACD, and moving averages",
 		Version:          "1.0.0",
-		RequiredServices: []string{"bedrock", "alpaca"},
+		RequiredServices: []string{"llm", "alpaca"},
 	}
 }

@@ -11,14 +11,8 @@ type Config struct {
 	// Database configuration
 	Database DatabaseConfig
 
-	// LLM provider selection
-	LLMProvider string // "openai" or "bedrock" (default: "openai")
-
 	// OpenAI configuration
 	OpenAI OpenAIConfig
-
-	// AWS/Bedrock configuration (optional fallback)
-	AWS AWSConfig
 
 	// External service configurations
 	Alpaca       AlpacaConfig
@@ -42,14 +36,6 @@ type Config struct {
 // DatabaseConfig holds database configuration
 type DatabaseConfig struct {
 	URL string
-}
-
-// AWSConfig holds AWS/Bedrock configuration
-type AWSConfig struct {
-	Region           string
-	BedrockModelID   string
-	BedrockMaxTokens int
-	AnthropicVersion string
 }
 
 // OpenAIConfig holds OpenAI API configuration
@@ -127,17 +113,10 @@ func Load() (*Config, error) {
 		Database: DatabaseConfig{
 			URL: os.Getenv("DATABASE_URL"),
 		},
-		LLMProvider: getEnvString("LLM_PROVIDER", "openai"),
 		OpenAI: OpenAIConfig{
 			APIKey:    os.Getenv("OPENAI_API_KEY"),
 			Model:     getEnvString("OPENAI_MODEL", "gpt-4o"),
 			MaxTokens: getEnvInt("OPENAI_MAX_TOKENS", 4096),
-		},
-		AWS: AWSConfig{
-			Region:           os.Getenv("AWS_REGION"),
-			BedrockModelID:   os.Getenv("BEDROCK_MODEL_ID"),
-			BedrockMaxTokens: getEnvInt("BEDROCK_MAX_TOKENS", 4096),
-			AnthropicVersion: getEnvString("BEDROCK_ANTHROPIC_VERSION", "bedrock-2023-05-31"),
 		},
 		Alpaca: AlpacaConfig{
 			APIKey:    os.Getenv("ALPACA_API_KEY"),
@@ -224,9 +203,6 @@ func (c *Config) Validate() error {
 	if c.Agent.TechnicalLookbackDays <= 0 {
 		return fmt.Errorf("TECHNICAL_ANALYSIS_LOOKBACK_DAYS must be positive, got %d", c.Agent.TechnicalLookbackDays)
 	}
-	if c.AWS.BedrockMaxTokens <= 0 {
-		return fmt.Errorf("BEDROCK_MAX_TOKENS must be positive, got %d", c.AWS.BedrockMaxTokens)
-	}
 
 	return nil
 }
@@ -239,26 +215,6 @@ func (c *Config) HasDatabase() bool {
 // HasOpenAI returns true if OpenAI configuration is available
 func (c *Config) HasOpenAI() bool {
 	return c.OpenAI.APIKey != ""
-}
-
-// HasBedrock returns true if Bedrock configuration is available
-func (c *Config) HasBedrock() bool {
-	return c.AWS.Region != "" && c.AWS.BedrockModelID != ""
-}
-
-// HasLLM returns true if any LLM provider is configured
-func (c *Config) HasLLM() bool {
-	return c.HasOpenAI() || c.HasBedrock()
-}
-
-// UsesOpenAI returns true if OpenAI is the configured LLM provider
-func (c *Config) UsesOpenAI() bool {
-	return c.LLMProvider == "openai" && c.HasOpenAI()
-}
-
-// UsesBedrock returns true if Bedrock is the configured LLM provider
-func (c *Config) UsesBedrock() bool {
-	return c.LLMProvider == "bedrock" && c.HasBedrock()
 }
 
 // HasAlpaca returns true if Alpaca configuration is available
@@ -345,17 +301,10 @@ func NewTestConfig() *Config {
 		Database: DatabaseConfig{
 			URL: "",
 		},
-		LLMProvider: "openai",
 		OpenAI: OpenAIConfig{
 			APIKey:    "",
 			Model:     "gpt-4o",
 			MaxTokens: 4096,
-		},
-		AWS: AWSConfig{
-			Region:           "us-east-1",
-			BedrockModelID:   "anthropic.claude-3-sonnet",
-			BedrockMaxTokens: 4096,
-			AnthropicVersion: "bedrock-2023-05-31",
 		},
 		Alpaca: AlpacaConfig{
 			APIKey:    "",

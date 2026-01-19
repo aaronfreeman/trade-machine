@@ -298,8 +298,8 @@ func TestBreakerConstants(t *testing.T) {
 	if BreakerAlpaca != "alpaca" {
 		t.Error("unexpected BreakerAlpaca constant")
 	}
-	if BreakerBedrock != "bedrock" {
-		t.Error("unexpected BreakerBedrock constant")
+	if BreakerOpenAI != "openai" {
+		t.Error("unexpected BreakerOpenAI constant")
 	}
 }
 

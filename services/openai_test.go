@@ -270,7 +270,7 @@ func TestOpenAIChat_Success(t *testing.T) {
 	service := newTestOpenAIService(mockClient)
 	ctx := context.Background()
 
-	messages := []ClaudeMessage{
+	messages := []ChatMessage{
 		{Role: "user", Content: "Hello"},
 		{Role: "assistant", Content: "Hi there!"},
 		{Role: "user", Content: "How are you?"},
@@ -297,7 +297,7 @@ func TestOpenAIChat_APIError(t *testing.T) {
 	service := newTestOpenAIService(mockClient)
 	ctx := context.Background()
 
-	_, err := service.Chat(ctx, "system", []ClaudeMessage{{Role: "user", Content: "test"}})
+	_, err := service.Chat(ctx, "system", []ChatMessage{{Role: "user", Content: "test"}})
 	if err == nil {
 		t.Error("expected error")
 	}
@@ -317,17 +317,17 @@ func TestOpenAIChat_EmptyChoices(t *testing.T) {
 	service := newTestOpenAIService(mockClient)
 	ctx := context.Background()
 
-	_, err := service.Chat(ctx, "system", []ClaudeMessage{{Role: "user", Content: "test"}})
+	_, err := service.Chat(ctx, "system", []ChatMessage{{Role: "user", Content: "test"}})
 	if err == nil {
 		t.Error("expected error for empty choices")
 	}
 }
 
-func TestOpenAIService_ImplementsBedrockServiceInterface(t *testing.T) {
+func TestOpenAIService_ImplementsLLMService(t *testing.T) {
 	// This test verifies the compile-time interface check
-	// The var _ BedrockServiceInterface = (*OpenAIService)(nil) line
+	// The var _ LLMService = (*OpenAIService)(nil) line
 	// in interfaces.go will cause a compile error if the interface isn't implemented
-	var _ BedrockServiceInterface = &OpenAIService{}
+	var _ LLMService = &OpenAIService{}
 }
 
 func TestOpenAIChat_MessageRoleConversion(t *testing.T) {
@@ -335,17 +335,17 @@ func TestOpenAIChat_MessageRoleConversion(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		messages []ClaudeMessage
+		messages []ChatMessage
 	}{
 		{
 			name: "User only",
-			messages: []ClaudeMessage{
+			messages: []ChatMessage{
 				{Role: "user", Content: "Test message"},
 			},
 		},
 		{
 			name: "Mixed roles",
-			messages: []ClaudeMessage{
+			messages: []ChatMessage{
 				{Role: "user", Content: "First user"},
 				{Role: "assistant", Content: "First assistant"},
 				{Role: "user", Content: "Second user"},
@@ -353,7 +353,7 @@ func TestOpenAIChat_MessageRoleConversion(t *testing.T) {
 		},
 		{
 			name: "Unknown role ignored",
-			messages: []ClaudeMessage{
+			messages: []ChatMessage{
 				{Role: "user", Content: "User"},
 				{Role: "unknown", Content: "Ignored"},
 				{Role: "assistant", Content: "Assistant"},

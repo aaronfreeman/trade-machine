@@ -10,11 +10,17 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// BedrockService defines the interface for AI/LLM operations via AWS Bedrock
-type BedrockServiceInterface interface {
+// ChatMessage represents a message in a conversation
+type ChatMessage struct {
+	Role    string `json:"role"`    // "user" or "assistant"
+	Content string `json:"content"` // Message content
+}
+
+// LLMService defines the interface for AI/LLM operations
+type LLMService interface {
 	InvokeWithPrompt(ctx context.Context, systemPrompt, userPrompt string) (string, error)
 	InvokeStructured(ctx context.Context, systemPrompt, userPrompt string, result interface{}) error
-	Chat(ctx context.Context, systemPrompt string, messages []ClaudeMessage) (string, error)
+	Chat(ctx context.Context, systemPrompt string, messages []ChatMessage) (string, error)
 }
 
 // AlphaVantageServiceInterface defines the interface for fundamental data operations
@@ -111,8 +117,7 @@ type AlpacaServiceInterface interface {
 }
 
 // Compile-time interface verification
-var _ BedrockServiceInterface = (*BedrockService)(nil)
-var _ BedrockServiceInterface = (*OpenAIService)(nil)
+var _ LLMService = (*OpenAIService)(nil)
 var _ AlphaVantageServiceInterface = (*AlphaVantageService)(nil)
 var _ NewsAPIServiceInterface = (*NewsAPIService)(nil)
 var _ AlpacaServiceInterface = (*AlpacaService)(nil)

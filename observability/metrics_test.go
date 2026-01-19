@@ -181,13 +181,13 @@ func TestRecordExternalAPIRequest(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	m := NewMetrics(reg)
 
-	m.RecordExternalAPIRequest("bedrock", "invoke")
-	m.RecordExternalAPIRequest("bedrock", "invoke")
+	m.RecordExternalAPIRequest("openai", "invoke")
+	m.RecordExternalAPIRequest("openai", "invoke")
 	m.RecordExternalAPIRequest("alpaca", "get_quote")
 
-	bedrockInvoke := testutil.ToFloat64(m.ExternalAPIRequestsTotal.WithLabelValues("bedrock", "invoke"))
-	if bedrockInvoke != 2 {
-		t.Errorf("Expected bedrock invoke count to be 2, got %f", bedrockInvoke)
+	openaiInvoke := testutil.ToFloat64(m.ExternalAPIRequestsTotal.WithLabelValues("openai", "invoke"))
+	if openaiInvoke != 2 {
+		t.Errorf("Expected openai invoke count to be 2, got %f", openaiInvoke)
 	}
 
 	alpacaQuote := testutil.ToFloat64(m.ExternalAPIRequestsTotal.WithLabelValues("alpaca", "get_quote"))
@@ -200,12 +200,12 @@ func TestRecordExternalAPIError(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	m := NewMetrics(reg)
 
-	m.RecordExternalAPIError("bedrock", "invoke", "timeout")
+	m.RecordExternalAPIError("openai", "invoke", "timeout")
 	m.RecordExternalAPIError("newsapi", "get_articles", "rate_limit")
 
-	bedrockTimeout := testutil.ToFloat64(m.ExternalAPIErrorsTotal.WithLabelValues("bedrock", "invoke", "timeout"))
-	if bedrockTimeout != 1 {
-		t.Errorf("Expected bedrock timeout count to be 1, got %f", bedrockTimeout)
+	openaiTimeout := testutil.ToFloat64(m.ExternalAPIErrorsTotal.WithLabelValues("openai", "invoke", "timeout"))
+	if openaiTimeout != 1 {
+		t.Errorf("Expected openai timeout count to be 1, got %f", openaiTimeout)
 	}
 }
 
@@ -213,7 +213,7 @@ func TestRecordExternalAPIDuration(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	m := NewMetrics(reg)
 
-	m.RecordExternalAPIDuration("bedrock", "invoke", 500*time.Millisecond)
+	m.RecordExternalAPIDuration("openai", "invoke", 500*time.Millisecond)
 	m.RecordExternalAPIDuration("alpaca", "get_bars", 200*time.Millisecond)
 
 	// Verify histograms are recorded
@@ -275,12 +275,12 @@ func TestCircuitBreakerMetrics(t *testing.T) {
 	m := NewMetrics(reg)
 
 	// Set initial states
-	m.SetCircuitBreakerState("bedrock", 0) // closed
+	m.SetCircuitBreakerState("openai", 0) // closed
 	m.SetCircuitBreakerState("alpaca", 2)  // open
 
-	bedrockState := testutil.ToFloat64(m.CircuitBreakerState.WithLabelValues("bedrock"))
-	if bedrockState != 0 {
-		t.Errorf("Expected bedrock state to be 0 (closed), got %f", bedrockState)
+	openaiState := testutil.ToFloat64(m.CircuitBreakerState.WithLabelValues("openai"))
+	if openaiState != 0 {
+		t.Errorf("Expected openai state to be 0 (closed), got %f", openaiState)
 	}
 
 	alpacaState := testutil.ToFloat64(m.CircuitBreakerState.WithLabelValues("alpaca"))
@@ -289,12 +289,12 @@ func TestCircuitBreakerMetrics(t *testing.T) {
 	}
 
 	// Record trips
-	m.RecordCircuitBreakerTrip("bedrock")
-	m.RecordCircuitBreakerTrip("bedrock")
+	m.RecordCircuitBreakerTrip("openai")
+	m.RecordCircuitBreakerTrip("openai")
 
-	bedrockTrips := testutil.ToFloat64(m.CircuitBreakerTrips.WithLabelValues("bedrock"))
-	if bedrockTrips != 2 {
-		t.Errorf("Expected bedrock trips to be 2, got %f", bedrockTrips)
+	openaiTrips := testutil.ToFloat64(m.CircuitBreakerTrips.WithLabelValues("openai"))
+	if openaiTrips != 2 {
+		t.Errorf("Expected openai trips to be 2, got %f", openaiTrips)
 	}
 }
 
@@ -326,7 +326,7 @@ func TestTimer(t *testing.T) {
 	// Test ObserveExternalAPI
 	timer3 := m.NewTimer()
 	time.Sleep(5 * time.Millisecond)
-	timer3.ObserveExternalAPI("bedrock", "invoke")
+	timer3.ObserveExternalAPI("openai", "invoke")
 
 	// Test ObserveDB
 	timer4 := m.NewTimer()

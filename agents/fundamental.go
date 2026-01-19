@@ -63,13 +63,11 @@ func NewFundamentalAnalystWithCacheTTL(llm LLMService, alphaVantage AlphaVantage
 
 // Analyze performs fundamental analysis on a stock
 func (a *FundamentalAnalyst) Analyze(ctx context.Context, symbol string) (*Analysis, error) {
-	// Fetch fundamentals from Alpha Vantage
 	fundamentals, err := a.alphaVantage.GetFundamentals(ctx, symbol)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch fundamentals: %w", err)
 	}
 
-	// Build user prompt with fundamental data
 	userPrompt := fmt.Sprintf(`Analyze the following fundamental data for %s:
 
 P/E Ratio: %.2f
@@ -91,13 +89,11 @@ Provide your analysis.`,
 		fundamentals.DividendYield*100,
 	)
 
-	// Call Claude via Bedrock
 	response, err := a.llm.InvokeWithPrompt(ctx, fundamentalSystemPrompt, userPrompt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to invoke bedrock: %w", err)
 	}
 
-	// Parse response
 	var result FundamentalAnalystResponse
 	if err := json.Unmarshal([]byte(response), &result); err != nil {
 		// If parsing fails, return a basic analysis
@@ -142,17 +138,12 @@ func (a *FundamentalAnalyst) Type() models.AgentType {
 // IsAvailable checks if the agent's dependencies are healthy.
 // Results are cached to reduce API calls during frequent availability checks.
 func (a *FundamentalAnalyst) IsAvailable(ctx context.Context) bool {
-	// Check cache first
 	if available, valid := a.healthCache.Get(); valid {
 		return available
 	}
 
-	// Cache miss or expired - make live API call
-	// Using a well-known symbol for the health check
 	_, err := a.alphaVantage.GetFundamentals(ctx, "AAPL")
 	available := err == nil
-
-	// Update cache
 	a.healthCache.Set(available)
 	return available
 }

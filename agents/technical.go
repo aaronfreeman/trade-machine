@@ -95,16 +95,12 @@ func (a *TechnicalAnalyst) Analyze(ctx context.Context, symbol string) (*Analysi
 		}, nil
 	}
 
-	// Extract close prices for indicator calculation
 	closePrices := make([]float64, len(bars))
 	for i, bar := range bars {
 		closePrices[i] = bar.Close
 	}
 
-	// Calculate indicators
 	indicators := a.calculateIndicators(closePrices)
-
-	// Build user prompt with technical data
 	latestBar := bars[len(bars)-1]
 	userPrompt := fmt.Sprintf(`Analyze the following technical indicators for %s:
 
@@ -138,13 +134,11 @@ Provide your technical analysis.`,
 		(latestBar.Close/indicators["sma50"].(float64)-1)*100,
 	)
 
-	// Call Claude via Bedrock
 	response, err := a.llm.InvokeWithPrompt(ctx, technicalSystemPrompt, userPrompt)
 	if err != nil {
 		return nil, fmt.Errorf("failed to invoke bedrock: %w", err)
 	}
 
-	// Parse response
 	var result TechnicalAnalystResponse
 	if err := json.Unmarshal([]byte(response), &result); err != nil {
 		return &Analysis{
@@ -175,30 +169,24 @@ Provide your technical analysis.`,
 	}, nil
 }
 
-// calculateIndicators computes technical indicators from price data
 func (a *TechnicalAnalyst) calculateIndicators(prices []float64) map[string]interface{} {
 	result := make(map[string]interface{})
 
-	// Calculate RSI manually (14-period)
 	result["rsi"] = a.calculateRSI(prices, 14)
 
-	// Calculate SMA 20 and 50
 	sma20 := a.calculateSMA(prices, 20)
 	sma50 := a.calculateSMA(prices, 50)
 	result["sma20"] = sma20
 	result["sma50"] = sma50
 
-	// Calculate EMA for MACD
 	ema12 := a.calculateEMA(prices, 12)
 	ema26 := a.calculateEMA(prices, 26)
 
-	// MACD = EMA12 - EMA26
 	macdLine := make([]float64, len(prices))
 	for i := range prices {
 		macdLine[i] = ema12[i] - ema26[i]
 	}
 
-	// Signal line = 9-period EMA of MACD
 	signalLine := a.calculateEMA(macdLine, 9)
 
 	if len(macdLine) > 0 && len(signalLine) > 0 {
@@ -213,7 +201,6 @@ func (a *TechnicalAnalyst) calculateIndicators(prices []float64) map[string]inte
 		result["macd_histogram"] = 0.0
 	}
 
-	// Calculate high/low
 	high, low := prices[0], prices[0]
 	for _, p := range prices {
 		if p > high {
@@ -229,7 +216,6 @@ func (a *TechnicalAnalyst) calculateIndicators(prices []float64) map[string]inte
 	return result
 }
 
-// calculateRSI computes Relative Strength Index
 func (a *TechnicalAnalyst) calculateRSI(prices []float64, period int) float64 {
 	if len(prices) < period+1 {
 		return 50.0 // neutral
@@ -257,7 +243,6 @@ func (a *TechnicalAnalyst) calculateRSI(prices []float64, period int) float64 {
 	return rsi
 }
 
-// calculateSMA computes Simple Moving Average
 func (a *TechnicalAnalyst) calculateSMA(prices []float64, period int) float64 {
 	if len(prices) < period {
 		return 0
@@ -269,7 +254,6 @@ func (a *TechnicalAnalyst) calculateSMA(prices []float64, period int) float64 {
 	return sum / float64(period)
 }
 
-// calculateEMA computes Exponential Moving Average
 func (a *TechnicalAnalyst) calculateEMA(prices []float64, period int) []float64 {
 	if len(prices) < period {
 		return prices
@@ -307,18 +291,14 @@ func (a *TechnicalAnalyst) Type() models.AgentType {
 // IsAvailable checks if the agent's dependencies are healthy.
 // Results are cached to reduce API calls during frequent availability checks.
 func (a *TechnicalAnalyst) IsAvailable(ctx context.Context) bool {
-	// Check cache first
 	if available, valid := a.healthCache.Get(); valid {
 		return available
 	}
 
-	// Cache miss or expired - make live API call
 	end := time.Now()
 	start := end.AddDate(0, 0, -1)
 	_, err := a.alpaca.GetBars(ctx, "AAPL", start, end, marketdata.OneDay)
 	available := err == nil
-
-	// Update cache
 	a.healthCache.Set(available)
 	return available
 }

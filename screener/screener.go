@@ -60,21 +60,18 @@ func NewValueScreener(
 func (s *ValueScreener) RunScreen(ctx context.Context) (*models.ScreenerRun, error) {
 	startTime := time.Now()
 
-	// Build screening criteria from config
 	criteria := models.ScreenerCriteria{
 		MarketCapMin: s.cfg.MarketCapMin,
 		PERatioMax:   s.cfg.PERatioMax,
 		PBRatioMax:   s.cfg.PBRatioMax,
-		Limit:        s.cfg.PreFilterLimit * 2, // Fetch more than we need for pre-filtering
+		Limit:        s.cfg.PreFilterLimit * 2,
 	}
 
-	// Create screener run record
 	run := models.NewScreenerRun(criteria)
 	if err := s.repo.CreateScreenerRun(ctx, run); err != nil {
 		return nil, fmt.Errorf("failed to create screener run: %w", err)
 	}
 
-	// Step 1: Fetch candidates from FMP
 	screenCriteria := services.ScreenCriteria{
 		MarketCapMin: criteria.MarketCapMin,
 		PERatioMax:   criteria.PERatioMax,
@@ -90,7 +87,6 @@ func (s *ValueScreener) RunScreen(ctx context.Context) (*models.ScreenerRun, err
 		return run, fmt.Errorf("failed to fetch candidates from FMP: %w", err)
 	}
 
-	// Convert FMP results to ScreenerCandidates
 	candidates := make([]models.ScreenerCandidate, 0, len(fmpResults))
 	for _, r := range fmpResults {
 		candidates = append(candidates, models.ScreenerCandidate{
@@ -109,25 +105,17 @@ func (s *ValueScreener) RunScreen(ctx context.Context) (*models.ScreenerRun, err
 		})
 	}
 
-	// Step 2: Pre-filter by value score
 	preFiltered := RankByValueScore(candidates, s.cfg.PreFilterLimit)
 	observability.Info("pre-filtered candidates",
 		"total", len(candidates),
 		"filtered", len(preFiltered))
 
-	// Step 3: Run full analysis on pre-filtered candidates in parallel
 	analyzedCandidates, recommendations := s.analyzeInParallel(ctx, preFiltered)
-
-	// Update candidates with analysis results
 	run.SetCandidates(analyzedCandidates)
 
-	// Step 4: Rank by analysis score and get top picks
 	topCandidates := RankByAnalysisScore(analyzedCandidates, s.cfg.TopPicksCount)
-
-	// Collect recommendation IDs for top picks
 	topPicks := make([]uuid.UUID, 0, len(topCandidates))
 	for _, c := range topCandidates {
-		// Find the recommendation for this symbol
 		for _, rec := range recommendations {
 			if rec.Symbol == c.Symbol {
 				topPicks = append(topPicks, rec.ID)
@@ -136,7 +124,6 @@ func (s *ValueScreener) RunScreen(ctx context.Context) (*models.ScreenerRun, err
 		}
 	}
 
-	// Complete the run
 	durationMs := time.Since(startTime).Milliseconds()
 	run.Complete(durationMs, topPicks)
 
@@ -152,13 +139,10 @@ func (s *ValueScreener) RunScreen(ctx context.Context) (*models.ScreenerRun, err
 	return run, nil
 }
 
-// analyzeInParallel runs analysis on candidates concurrently with a semaphore limit
 func (s *ValueScreener) analyzeInParallel(ctx context.Context, candidates []models.ScreenerCandidate) ([]models.ScreenerCandidate, []*models.Recommendation) {
-	// Create timeout context for analysis
 	analysisCtx, cancel := context.WithTimeout(ctx, time.Duration(s.cfg.AnalysisTimeoutSec)*time.Second)
 	defer cancel()
 
-	// Results channels
 	type analysisResult struct {
 		index      int
 		candidate  models.ScreenerCandidate
@@ -170,13 +154,11 @@ func (s *ValueScreener) analyzeInParallel(ctx context.Context, candidates []mode
 	sem := make(chan struct{}, s.cfg.MaxConcurrent)
 	var wg sync.WaitGroup
 
-	// Launch analysis goroutines
 	for i, candidate := range candidates {
 		wg.Add(1)
 		go func(idx int, c models.ScreenerCandidate) {
 			defer wg.Done()
 
-			// Acquire semaphore
 			select {
 			case sem <- struct{}{}:
 				defer func() { <-sem }()
@@ -185,7 +167,6 @@ func (s *ValueScreener) analyzeInParallel(ctx context.Context, candidates []mode
 				return
 			}
 
-			// Run analysis
 			rec, err := s.analysisProvider.AnalyzeSymbol(analysisCtx, c.Symbol)
 			if err != nil || rec == nil {
 				observability.Warn("analysis failed for candidate",
@@ -195,16 +176,12 @@ func (s *ValueScreener) analyzeInParallel(ctx context.Context, candidates []mode
 				return
 			}
 
-			// Calculate combined score (weighted average of all agent scores)
 			combinedScore := (rec.FundamentalScore*0.4 + rec.SentimentScore*0.3 + rec.TechnicalScore*0.3)
 			confidence := rec.Confidence
-
-			// Update candidate with analysis results
 			c.Score = &combinedScore
 			c.Confidence = &confidence
 			c.Analyzed = true
 
-			// Save recommendation to database
 			if err := s.repo.CreateRecommendation(analysisCtx, rec); err != nil {
 				observability.Warn("failed to save recommendation",
 					"symbol", c.Symbol,
@@ -215,13 +192,11 @@ func (s *ValueScreener) analyzeInParallel(ctx context.Context, candidates []mode
 		}(i, candidate)
 	}
 
-	// Close results channel when all goroutines complete
 	go func() {
 		wg.Wait()
 		close(results)
 	}()
 
-	// Collect results
 	analyzedCandidates := make([]models.ScreenerCandidate, len(candidates))
 	copy(analyzedCandidates, candidates)
 	recommendations := make([]*models.Recommendation, 0, len(candidates))
@@ -251,7 +226,6 @@ func (s *ValueScreener) GetLatestPicks(ctx context.Context) ([]models.ScreenerCa
 		return nil, nil
 	}
 
-	// Get the top candidates from the run
 	return RankByAnalysisScore(run.Candidates, s.cfg.TopPicksCount), nil
 }
 

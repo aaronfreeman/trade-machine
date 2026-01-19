@@ -228,7 +228,6 @@ func (h *Handler) HandleAnalyzeStock(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		// Try form value
 		req.Symbol = r.FormValue("symbol")
 	}
 
@@ -241,7 +240,6 @@ func (h *Handler) HandleAnalyzeStock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Normalize symbol to uppercase
 	req.Symbol = strings.ToUpper(strings.TrimSpace(req.Symbol))
 
 	if err := h.ValidateSymbol(req.Symbol); err != nil {
@@ -411,7 +409,6 @@ func (h *Handler) HandleRunScreener(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if isHTMXRequest(r) {
-		// Get the top picks from the run to display in TodaysPicks view
 		picks, _ := h.app.GetTopPicks()
 		h.htmlResponse(w, partials.TodaysPicks(run, picks), r)
 		return
@@ -619,7 +616,6 @@ func (h *Handler) HandleUpdateAPIKey(w http.ResponseWriter, r *http.Request) {
 
 	var req settings.APIKeyConfig
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		// Try form values
 		req.ServiceName = settings.ServiceName(r.FormValue("service_name"))
 		req.APIKey = r.FormValue("api_key")
 		req.APISecret = r.FormValue("api_secret")
@@ -647,7 +643,6 @@ func (h *Handler) HandleUpdateAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if isHTMXRequest(r) {
-		// Return updated settings form
 		masked := settingsStore.GetMaskedSettings()
 		h.htmlResponse(w, partials.SettingsForm(masked), r)
 		return
@@ -741,7 +736,6 @@ func (h *Handler) HandleDeleteAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if isHTMXRequest(r) {
-		// Return updated settings form
 		masked := settingsStore.GetMaskedSettings()
 		h.htmlResponse(w, partials.SettingsForm(masked), r)
 		return
@@ -769,7 +763,6 @@ func (h *Handler) HandleSettingsPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// For non-HTMX requests, render the full page
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	templates.Index().Render(r.Context(), w)
 }

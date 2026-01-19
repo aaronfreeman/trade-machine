@@ -24,7 +24,6 @@ func NewDefaultStrategy() *DefaultStrategy {
 	}
 }
 
-// DetermineAction implements ActionStrategy
 func (s *DefaultStrategy) DetermineAction(score float64, confidence float64) models.RecommendationAction {
 	if score > s.BuyThreshold {
 		return models.RecommendationActionBuy
@@ -35,7 +34,6 @@ func (s *DefaultStrategy) DetermineAction(score float64, confidence float64) mod
 	return models.RecommendationActionHold
 }
 
-// Name implements ActionStrategy
 func (s *DefaultStrategy) Name() string {
 	return "default"
 }
@@ -56,9 +54,7 @@ func NewConservativeStrategy() *ConservativeStrategy {
 	}
 }
 
-// DetermineAction implements ActionStrategy
 func (s *ConservativeStrategy) DetermineAction(score float64, confidence float64) models.RecommendationAction {
-	// If confidence is too low, always hold
 	if confidence < s.MinConfidence {
 		return models.RecommendationActionHold
 	}
@@ -71,7 +67,6 @@ func (s *ConservativeStrategy) DetermineAction(score float64, confidence float64
 	return models.RecommendationActionHold
 }
 
-// Name implements ActionStrategy
 func (s *ConservativeStrategy) Name() string {
 	return "conservative"
 }
@@ -90,7 +85,6 @@ func NewAggressiveStrategy() *AggressiveStrategy {
 	}
 }
 
-// DetermineAction implements ActionStrategy
 func (s *AggressiveStrategy) DetermineAction(score float64, confidence float64) models.RecommendationAction {
 	if score > s.BuyThreshold {
 		return models.RecommendationActionBuy
@@ -101,7 +95,6 @@ func (s *AggressiveStrategy) DetermineAction(score float64, confidence float64) 
 	return models.RecommendationActionHold
 }
 
-// Name implements ActionStrategy
 func (s *AggressiveStrategy) Name() string {
 	return "aggressive"
 }
@@ -124,7 +117,6 @@ func NewCustomStrategy(buyThreshold, sellThreshold, minConfidence float64) *Cust
 	}
 }
 
-// DetermineAction implements ActionStrategy
 func (s *CustomStrategy) DetermineAction(score float64, confidence float64) models.RecommendationAction {
 	if s.MinConfidence > 0 && confidence < s.MinConfidence {
 		return models.RecommendationActionHold
@@ -138,7 +130,6 @@ func (s *CustomStrategy) DetermineAction(score float64, confidence float64) mode
 	return models.RecommendationActionHold
 }
 
-// Name implements ActionStrategy
 func (s *CustomStrategy) Name() string {
 	return s.StrategyName
 }

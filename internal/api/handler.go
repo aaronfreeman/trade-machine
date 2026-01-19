@@ -227,7 +227,11 @@ func (h *Handler) HandleAnalyzeStock(w http.ResponseWriter, r *http.Request) {
 		Symbol string `json:"symbol"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	contentType := r.Header.Get("Content-Type")
+	if strings.Contains(contentType, "application/json") {
+		_ = json.NewDecoder(r.Body).Decode(&req)
+	} else {
+		_ = r.ParseForm()
 		req.Symbol = r.FormValue("symbol")
 	}
 
@@ -615,7 +619,25 @@ func (h *Handler) HandleUpdateAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req settings.APIKeyConfig
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+	contentType := r.Header.Get("Content-Type")
+	if strings.Contains(contentType, "application/json") {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			if isHTMXRequest(r) {
+				h.htmlError(w, "Invalid JSON request", r)
+				return
+			}
+			h.jsonError(w, "Invalid JSON request", http.StatusBadRequest)
+			return
+		}
+	} else {
+		if err := r.ParseForm(); err != nil {
+			if isHTMXRequest(r) {
+				h.htmlError(w, "Failed to parse form", r)
+				return
+			}
+			h.jsonError(w, "Failed to parse form", http.StatusBadRequest)
+			return
+		}
 		req.ServiceName = settings.ServiceName(r.FormValue("service_name"))
 		req.APIKey = r.FormValue("api_key")
 		req.APISecret = r.FormValue("api_secret")

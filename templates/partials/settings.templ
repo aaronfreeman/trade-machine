@@ -74,12 +74,12 @@ templ ServiceCard(service settings.ServiceName, config *settings.MaskedAPIKeyCon
 
 					if needsAPIKey {
 						<div class="mb-3">
-							<label class="form-label">API Key</label>
+							<label class="form-label">{ settings.ServiceDisplayName(service) } API Key</label>
 							<input
 								type="password"
 								class="form-control"
 								name="api_key"
-								placeholder={ getPlaceholder(config, "api_key") }
+								placeholder={ getPlaceholder(config, "api_key", service) }
 								autocomplete="off"
 							/>
 							if config != nil && config.APIKey != "" {
@@ -90,12 +90,12 @@ templ ServiceCard(service settings.ServiceName, config *settings.MaskedAPIKeyCon
 
 					if needsSecret {
 						<div class="mb-3">
-							<label class="form-label">API Secret</label>
+							<label class="form-label">{ settings.ServiceDisplayName(service) } API Secret</label>
 							<input
 								type="password"
 								class="form-control"
 								name="api_secret"
-								placeholder={ getPlaceholder(config, "api_secret") }
+								placeholder={ getPlaceholder(config, "api_secret", service) }
 								autocomplete="off"
 							/>
 							if config != nil && config.APISecret != "" {
@@ -181,21 +181,25 @@ templ ServiceStatus(service settings.ServiceName, valid bool, message string) {
 }
 
 // Helper functions
-func getPlaceholder(config *settings.MaskedAPIKeyConfig, field string) string {
+func getPlaceholder(config *settings.MaskedAPIKeyConfig, field string, service settings.ServiceName) string {
+	displayName := settings.ServiceDisplayName(service)
 	if config == nil {
-		return "Enter API key"
+		if field == "api_secret" {
+			return "Enter your " + displayName + " API secret"
+		}
+		return "Enter your " + displayName + " API key"
 	}
 	switch field {
 	case "api_key":
 		if config.APIKey != "" {
 			return "Enter new key to update"
 		}
-		return "Enter API key"
+		return "Enter your " + displayName + " API key"
 	case "api_secret":
 		if config.APISecret != "" {
 			return "Enter new secret to update"
 		}
-		return "Enter API secret"
+		return "Enter your " + displayName + " API secret"
 	}
 	return ""
 }

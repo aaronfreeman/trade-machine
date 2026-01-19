@@ -112,6 +112,7 @@ type AlpacaServiceInterface interface {
 
 // Compile-time interface verification
 var _ BedrockServiceInterface = (*BedrockService)(nil)
+var _ BedrockServiceInterface = (*OpenAIService)(nil)
 var _ AlphaVantageServiceInterface = (*AlphaVantageService)(nil)
 var _ NewsAPIServiceInterface = (*NewsAPIService)(nil)
 var _ AlpacaServiceInterface = (*AlpacaService)(nil)

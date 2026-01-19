@@ -37,6 +37,10 @@ func clearEnv(t *testing.T, keys []string) {
 
 var allEnvKeys = []string{
 	"DATABASE_URL",
+	"LLM_PROVIDER",
+	"OPENAI_API_KEY",
+	"OPENAI_MODEL",
+	"OPENAI_MAX_TOKENS",
 	"AWS_REGION",
 	"BEDROCK_MODEL_ID",
 	"BEDROCK_MAX_TOKENS",
@@ -410,5 +414,210 @@ func TestGetEnvFloat(t *testing.T) {
 	os.Setenv(key, "-0.1")
 	if got := getEnvFloat(key, 0.5); got != 0.5 {
 		t.Errorf("expected 0.5 for negative value, got %f", got)
+	}
+}
+
+func TestHasOpenAI(t *testing.T) {
+	cfg := &Config{
+		OpenAI: OpenAIConfig{APIKey: ""},
+	}
+	if cfg.HasOpenAI() {
+		t.Error("expected HasOpenAI() to return false for empty key")
+	}
+
+	cfg.OpenAI.APIKey = "sk-test"
+	if !cfg.HasOpenAI() {
+		t.Error("expected HasOpenAI() to return true for non-empty key")
+	}
+}
+
+func TestHasLLM(t *testing.T) {
+	tests := []struct {
+		name     string
+		openai   OpenAIConfig
+		aws      AWSConfig
+		expected bool
+	}{
+		{
+			name:     "No LLM configured",
+			openai:   OpenAIConfig{APIKey: ""},
+			aws:      AWSConfig{Region: "", BedrockModelID: ""},
+			expected: false,
+		},
+		{
+			name:     "OpenAI configured",
+			openai:   OpenAIConfig{APIKey: "sk-test"},
+			aws:      AWSConfig{Region: "", BedrockModelID: ""},
+			expected: true,
+		},
+		{
+			name:     "Bedrock configured",
+			openai:   OpenAIConfig{APIKey: ""},
+			aws:      AWSConfig{Region: "us-east-1", BedrockModelID: "claude-3"},
+			expected: true,
+		},
+		{
+			name:     "Both configured",
+			openai:   OpenAIConfig{APIKey: "sk-test"},
+			aws:      AWSConfig{Region: "us-east-1", BedrockModelID: "claude-3"},
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{
+				OpenAI: tt.openai,
+				AWS:    tt.aws,
+			}
+			if got := cfg.HasLLM(); got != tt.expected {
+				t.Errorf("HasLLM() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestUsesOpenAI(t *testing.T) {
+	tests := []struct {
+		name        string
+		llmProvider string
+		openai      OpenAIConfig
+		expected    bool
+	}{
+		{
+			name:        "Provider openai with key",
+			llmProvider: "openai",
+			openai:      OpenAIConfig{APIKey: "sk-test"},
+			expected:    true,
+		},
+		{
+			name:        "Provider openai without key",
+			llmProvider: "openai",
+			openai:      OpenAIConfig{APIKey: ""},
+			expected:    false,
+		},
+		{
+			name:        "Provider bedrock with openai key",
+			llmProvider: "bedrock",
+			openai:      OpenAIConfig{APIKey: "sk-test"},
+			expected:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{
+				LLMProvider: tt.llmProvider,
+				OpenAI:      tt.openai,
+			}
+			if got := cfg.UsesOpenAI(); got != tt.expected {
+				t.Errorf("UsesOpenAI() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestUsesBedrock(t *testing.T) {
+	tests := []struct {
+		name        string
+		llmProvider string
+		aws         AWSConfig
+		expected    bool
+	}{
+		{
+			name:        "Provider bedrock with config",
+			llmProvider: "bedrock",
+			aws:         AWSConfig{Region: "us-east-1", BedrockModelID: "claude-3"},
+			expected:    true,
+		},
+		{
+			name:        "Provider bedrock without config",
+			llmProvider: "bedrock",
+			aws:         AWSConfig{Region: "", BedrockModelID: ""},
+			expected:    false,
+		},
+		{
+			name:        "Provider openai with bedrock config",
+			llmProvider: "openai",
+			aws:         AWSConfig{Region: "us-east-1", BedrockModelID: "claude-3"},
+			expected:    false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &Config{
+				LLMProvider: tt.llmProvider,
+				AWS:         tt.aws,
+			}
+			if got := cfg.UsesBedrock(); got != tt.expected {
+				t.Errorf("UsesBedrock() = %v, want %v", got, tt.expected)
+			}
+		})
+	}
+}
+
+func TestLoad_OpenAIDefaults(t *testing.T) {
+	saved := saveEnv(t, allEnvKeys)
+	defer restoreEnv(t, saved)
+	clearEnv(t, allEnvKeys)
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() with defaults failed: %v", err)
+	}
+
+	// Check OpenAI defaults
+	if cfg.LLMProvider != "openai" {
+		t.Errorf("expected LLMProvider='openai', got %s", cfg.LLMProvider)
+	}
+	if cfg.OpenAI.Model != "gpt-4o" {
+		t.Errorf("expected OpenAI.Model='gpt-4o', got %s", cfg.OpenAI.Model)
+	}
+	if cfg.OpenAI.MaxTokens != 4096 {
+		t.Errorf("expected OpenAI.MaxTokens=4096, got %d", cfg.OpenAI.MaxTokens)
+	}
+}
+
+func TestLoad_OpenAICustomValues(t *testing.T) {
+	saved := saveEnv(t, allEnvKeys)
+	defer restoreEnv(t, saved)
+	clearEnv(t, allEnvKeys)
+
+	os.Setenv("LLM_PROVIDER", "openai")
+	os.Setenv("OPENAI_API_KEY", "sk-test-key")
+	os.Setenv("OPENAI_MODEL", "gpt-4-turbo")
+	os.Setenv("OPENAI_MAX_TOKENS", "2048")
+
+	cfg, err := Load()
+	if err != nil {
+		t.Fatalf("Load() with OpenAI custom values failed: %v", err)
+	}
+
+	if cfg.LLMProvider != "openai" {
+		t.Errorf("expected LLMProvider='openai', got %s", cfg.LLMProvider)
+	}
+	if cfg.OpenAI.APIKey != "sk-test-key" {
+		t.Errorf("expected OpenAI.APIKey='sk-test-key', got %s", cfg.OpenAI.APIKey)
+	}
+	if cfg.OpenAI.Model != "gpt-4-turbo" {
+		t.Errorf("expected OpenAI.Model='gpt-4-turbo', got %s", cfg.OpenAI.Model)
+	}
+	if cfg.OpenAI.MaxTokens != 2048 {
+		t.Errorf("expected OpenAI.MaxTokens=2048, got %d", cfg.OpenAI.MaxTokens)
+	}
+}
+
+func TestNewTestConfig_IncludesOpenAI(t *testing.T) {
+	cfg := NewTestConfig()
+
+	if cfg.LLMProvider != "openai" {
+		t.Errorf("expected LLMProvider='openai', got %s", cfg.LLMProvider)
+	}
+	if cfg.OpenAI.Model != "gpt-4o" {
+		t.Errorf("expected OpenAI.Model='gpt-4o', got %s", cfg.OpenAI.Model)
+	}
+	if cfg.OpenAI.MaxTokens != 4096 {
+		t.Errorf("expected OpenAI.MaxTokens=4096, got %d", cfg.OpenAI.MaxTokens)
 	}
 }

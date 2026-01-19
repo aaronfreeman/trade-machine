@@ -11,7 +11,13 @@ type Config struct {
 	// Database configuration
 	Database DatabaseConfig
 
-	// AWS/Bedrock configuration
+	// LLM provider selection
+	LLMProvider string // "openai" or "bedrock" (default: "openai")
+
+	// OpenAI configuration
+	OpenAI OpenAIConfig
+
+	// AWS/Bedrock configuration (optional fallback)
 	AWS AWSConfig
 
 	// External service configurations
@@ -44,6 +50,13 @@ type AWSConfig struct {
 	BedrockModelID   string
 	BedrockMaxTokens int
 	AnthropicVersion string
+}
+
+// OpenAIConfig holds OpenAI API configuration
+type OpenAIConfig struct {
+	APIKey    string
+	Model     string
+	MaxTokens int
 }
 
 // AlpacaConfig holds Alpaca API configuration
@@ -113,6 +126,12 @@ func Load() (*Config, error) {
 	cfg := &Config{
 		Database: DatabaseConfig{
 			URL: os.Getenv("DATABASE_URL"),
+		},
+		LLMProvider: getEnvString("LLM_PROVIDER", "openai"),
+		OpenAI: OpenAIConfig{
+			APIKey:    os.Getenv("OPENAI_API_KEY"),
+			Model:     getEnvString("OPENAI_MODEL", "gpt-4o"),
+			MaxTokens: getEnvInt("OPENAI_MAX_TOKENS", 4096),
 		},
 		AWS: AWSConfig{
 			Region:           os.Getenv("AWS_REGION"),
@@ -217,9 +236,29 @@ func (c *Config) HasDatabase() bool {
 	return c.Database.URL != ""
 }
 
+// HasOpenAI returns true if OpenAI configuration is available
+func (c *Config) HasOpenAI() bool {
+	return c.OpenAI.APIKey != ""
+}
+
 // HasBedrock returns true if Bedrock configuration is available
 func (c *Config) HasBedrock() bool {
 	return c.AWS.Region != "" && c.AWS.BedrockModelID != ""
+}
+
+// HasLLM returns true if any LLM provider is configured
+func (c *Config) HasLLM() bool {
+	return c.HasOpenAI() || c.HasBedrock()
+}
+
+// UsesOpenAI returns true if OpenAI is the configured LLM provider
+func (c *Config) UsesOpenAI() bool {
+	return c.LLMProvider == "openai" && c.HasOpenAI()
+}
+
+// UsesBedrock returns true if Bedrock is the configured LLM provider
+func (c *Config) UsesBedrock() bool {
+	return c.LLMProvider == "bedrock" && c.HasBedrock()
 }
 
 // HasAlpaca returns true if Alpaca configuration is available
@@ -305,6 +344,12 @@ func NewTestConfig() *Config {
 	return &Config{
 		Database: DatabaseConfig{
 			URL: "",
+		},
+		LLMProvider: "openai",
+		OpenAI: OpenAIConfig{
+			APIKey:    "",
+			Model:     "gpt-4o",
+			MaxTokens: 4096,
 		},
 		AWS: AWSConfig{
 			Region:           "us-east-1",

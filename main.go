@@ -55,20 +55,51 @@ func main() {
 	}
 
 	// Initialize services (with nil checks for graceful degradation)
-	var bedrockService *services.BedrockService
+	var llmService services.BedrockServiceInterface
 	var alpacaService *services.AlpacaService
 	var alphaVantageService *services.AlphaVantageService
 	var newsAPIService *services.NewsAPIService
 	var fmpService *services.FMPService
 
-	// AWS Bedrock Service
-	if cfg.HasBedrock() {
-		bedrockService, err = services.NewBedrockService(ctx, cfg)
+	// Initialize LLM Service (OpenAI preferred, Bedrock as fallback)
+	if cfg.UsesOpenAI() {
+		openaiService, err := services.NewOpenAIService(cfg)
+		if err != nil {
+			observability.Warn("failed to initialize OpenAI service", "error", err)
+		} else {
+			llmService = openaiService
+			observability.Info("initialized OpenAI service", "model", cfg.OpenAI.Model)
+		}
+	} else if cfg.UsesBedrock() {
+		bedrockService, err := services.NewBedrockService(ctx, cfg)
 		if err != nil {
 			observability.Warn("failed to initialize Bedrock service", "error", err)
+		} else {
+			llmService = bedrockService
+			observability.Info("initialized Bedrock service", "model", cfg.AWS.BedrockModelID)
 		}
-	} else {
-		observability.Warn("AWS_REGION or BEDROCK_MODEL_ID not set, AI agents disabled")
+	} else if cfg.HasOpenAI() {
+		// Fallback: try OpenAI if API key is set but LLM_PROVIDER is not explicitly "openai"
+		openaiService, err := services.NewOpenAIService(cfg)
+		if err != nil {
+			observability.Warn("failed to initialize OpenAI service (fallback)", "error", err)
+		} else {
+			llmService = openaiService
+			observability.Info("initialized OpenAI service (fallback)", "model", cfg.OpenAI.Model)
+		}
+	} else if cfg.HasBedrock() {
+		// Fallback: try Bedrock if AWS config is set
+		bedrockService, err := services.NewBedrockService(ctx, cfg)
+		if err != nil {
+			observability.Warn("failed to initialize Bedrock service (fallback)", "error", err)
+		} else {
+			llmService = bedrockService
+			observability.Info("initialized Bedrock service (fallback)", "model", cfg.AWS.BedrockModelID)
+		}
+	}
+
+	if llmService == nil {
+		observability.Warn("no LLM service configured, AI agents disabled - set OPENAI_API_KEY or AWS credentials")
 	}
 
 	// Alpaca Service
@@ -105,14 +136,14 @@ func main() {
 		portfolioManager = agents.NewPortfolioManager(repo, cfg, alpacaService)
 
 		// Register agents if their dependencies are available
-		if bedrockService != nil && alphaVantageService != nil {
-			portfolioManager.RegisterAgent(agents.NewFundamentalAnalyst(bedrockService, alphaVantageService))
+		if llmService != nil && alphaVantageService != nil {
+			portfolioManager.RegisterAgent(agents.NewFundamentalAnalyst(llmService, alphaVantageService))
 		}
-		if bedrockService != nil && newsAPIService != nil {
-			portfolioManager.RegisterAgent(agents.NewNewsAnalyst(bedrockService, newsAPIService))
+		if llmService != nil && newsAPIService != nil {
+			portfolioManager.RegisterAgent(agents.NewNewsAnalyst(llmService, newsAPIService))
 		}
-		if bedrockService != nil {
-			portfolioManager.RegisterAgent(agents.NewTechnicalAnalyst(bedrockService, alpacaService, cfg))
+		if llmService != nil {
+			portfolioManager.RegisterAgent(agents.NewTechnicalAnalyst(llmService, alpacaService, cfg))
 		}
 	} else if repo != nil {
 		observability.Warn("Alpaca service required for position sizing, portfolio manager disabled")

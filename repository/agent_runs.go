@@ -15,7 +15,7 @@ import (
 func (r *Repository) CreateAgentRun(ctx context.Context, run *models.AgentRun) error {
 	inputData, _ := json.Marshal(run.InputData)
 
-	_, err := r.pool.Exec(ctx, `
+	_, err := r.db.Exec(ctx, `
 		INSERT INTO agent_runs (id, agent_type, symbol, status, input_data, started_at)
 		VALUES ($1, $2, $3, $4, $5, $6)
 	`, run.ID, run.AgentType, run.Symbol, run.Status, inputData, run.StartedAt)
@@ -31,7 +31,7 @@ func (r *Repository) CreateAgentRun(ctx context.Context, run *models.AgentRun) e
 func (r *Repository) UpdateAgentRun(ctx context.Context, run *models.AgentRun) error {
 	outputData, _ := json.Marshal(run.OutputData)
 
-	_, err := r.pool.Exec(ctx, `
+	_, err := r.db.Exec(ctx, `
 		UPDATE agent_runs 
 		SET status = $2, output_data = $3, error_message = $4, duration_ms = $5, completed_at = $6
 		WHERE id = $1
@@ -51,7 +51,7 @@ func (r *Repository) GetAgentRun(ctx context.Context, id uuid.UUID) (*models.Age
 	var errorMessage *string
 	var durationMs *int
 
-	err := r.pool.QueryRow(ctx, `
+	err := r.db.QueryRow(ctx, `
 		SELECT id, agent_type, symbol, status, input_data, output_data, error_message, duration_ms, started_at, completed_at
 		FROM agent_runs WHERE id = $1
 	`, id).Scan(&run.ID, &run.AgentType, &run.Symbol, &run.Status, &inputData, &outputData, &errorMessage, &durationMs, &run.StartedAt, &run.CompletedAt)
@@ -89,14 +89,14 @@ func (r *Repository) GetAgentRuns(ctx context.Context, agentType models.AgentTyp
 	var err error
 
 	if agentType == "" {
-		rows, err = r.pool.Query(ctx, `
+		rows, err = r.db.Query(ctx, `
 			SELECT id, agent_type, symbol, status, input_data, output_data, error_message, duration_ms, started_at, completed_at
 			FROM agent_runs
 			ORDER BY started_at DESC
 			LIMIT $1
 		`, limit)
 	} else {
-		rows, err = r.pool.Query(ctx, `
+		rows, err = r.db.Query(ctx, `
 			SELECT id, agent_type, symbol, status, input_data, output_data, error_message, duration_ms, started_at, completed_at
 			FROM agent_runs
 			WHERE agent_type = $1
@@ -147,7 +147,7 @@ func (r *Repository) GetRecentRunsForSymbol(ctx context.Context, symbol string, 
 		limit = 10
 	}
 
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.db.Query(ctx, `
 		SELECT id, agent_type, symbol, status, input_data, output_data, error_message, duration_ms, started_at, completed_at
 		FROM agent_runs
 		WHERE symbol = $1

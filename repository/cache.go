@@ -13,10 +13,11 @@ import (
 func (r *Repository) GetCachedData(ctx context.Context, symbol, dataType string) (map[string]interface{}, error) {
 	var data []byte
 
-	// Let the database handle expiry check to avoid timezone issues
-	err := r.pool.QueryRow(ctx, `
+	// Use clock_timestamp() for real wall-clock time comparison
+	// (NOW() returns transaction start time which doesn't change within a transaction)
+	err := r.db.QueryRow(ctx, `
 		SELECT data FROM market_data_cache
-		WHERE symbol = $1 AND data_type = $2 AND expires_at > NOW()
+		WHERE symbol = $1 AND data_type = $2 AND expires_at > clock_timestamp()
 	`, symbol, dataType).Scan(&data)
 
 	if err == pgx.ErrNoRows {
@@ -41,7 +42,7 @@ func (r *Repository) SetCachedData(ctx context.Context, symbol, dataType string,
 		return fmt.Errorf("failed to marshal cache data: %w", err)
 	}
 
-	_, err = r.pool.Exec(ctx, `
+	_, err = r.db.Exec(ctx, `
 		INSERT INTO market_data_cache (symbol, data_type, data, expires_at)
 		VALUES ($1, $2, $3, NOW() + $4::interval)
 		ON CONFLICT (symbol, data_type) 
@@ -57,7 +58,7 @@ func (r *Repository) SetCachedData(ctx context.Context, symbol, dataType string,
 
 // InvalidateCache removes cached data for a symbol and data type
 func (r *Repository) InvalidateCache(ctx context.Context, symbol, dataType string) error {
-	_, err := r.pool.Exec(ctx, `
+	_, err := r.db.Exec(ctx, `
 		DELETE FROM market_data_cache WHERE symbol = $1 AND data_type = $2
 	`, symbol, dataType)
 
@@ -70,7 +71,7 @@ func (r *Repository) InvalidateCache(ctx context.Context, symbol, dataType strin
 
 // InvalidateAllCacheForSymbol removes all cached data for a symbol
 func (r *Repository) InvalidateAllCacheForSymbol(ctx context.Context, symbol string) error {
-	_, err := r.pool.Exec(ctx, `DELETE FROM market_data_cache WHERE symbol = $1`, symbol)
+	_, err := r.db.Exec(ctx, `DELETE FROM market_data_cache WHERE symbol = $1`, symbol)
 	if err != nil {
 		return fmt.Errorf("failed to invalidate cache: %w", err)
 	}
@@ -79,7 +80,7 @@ func (r *Repository) InvalidateAllCacheForSymbol(ctx context.Context, symbol str
 
 // CleanExpiredCache removes all expired cache entries
 func (r *Repository) CleanExpiredCache(ctx context.Context) (int64, error) {
-	result, err := r.pool.Exec(ctx, `DELETE FROM market_data_cache WHERE expires_at < NOW()`)
+	result, err := r.db.Exec(ctx, `DELETE FROM market_data_cache WHERE expires_at < clock_timestamp()`)
 	if err != nil {
 		return 0, fmt.Errorf("failed to clean expired cache: %w", err)
 	}

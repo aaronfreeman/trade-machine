@@ -27,7 +27,7 @@ func (r *Repository) GetRecommendations(ctx context.Context, status models.Recom
 	var err error
 
 	if status == "" {
-		rows, err = r.pool.Query(ctx, `
+		rows, err = r.db.Query(ctx, `
 			SELECT id, symbol, action, quantity, target_price, confidence, reasoning,
 				   fundamental_score, sentiment_score, technical_score,
 				   data_completeness, missing_agents,
@@ -37,7 +37,7 @@ func (r *Repository) GetRecommendations(ctx context.Context, status models.Recom
 			LIMIT $1
 		`, limit)
 	} else {
-		rows, err = r.pool.Query(ctx, `
+		rows, err = r.db.Query(ctx, `
 			SELECT id, symbol, action, quantity, target_price, confidence, reasoning,
 				   fundamental_score, sentiment_score, technical_score,
 				   data_completeness, missing_agents,
@@ -102,7 +102,7 @@ func scanRecommendation(row pgx.Row) (*models.Recommendation, error) {
 
 // GetRecommendation returns a single recommendation by ID
 func (r *Repository) GetRecommendation(ctx context.Context, id uuid.UUID) (*models.Recommendation, error) {
-	row := r.pool.QueryRow(ctx, `
+	row := r.db.QueryRow(ctx, `
 		SELECT id, symbol, action, quantity, target_price, confidence, reasoning,
 			   fundamental_score, sentiment_score, technical_score,
 			   data_completeness, missing_agents,
@@ -134,7 +134,7 @@ func (r *Repository) CreateRecommendation(ctx context.Context, rec *models.Recom
 		return fmt.Errorf("failed to marshal missing_agents: %w", err)
 	}
 
-	_, err = r.pool.Exec(ctx, `
+	_, err = r.db.Exec(ctx, `
 		INSERT INTO recommendations (id, symbol, action, quantity, target_price, confidence, reasoning,
 			fundamental_score, sentiment_score, technical_score, data_completeness, missing_agents, status, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
@@ -151,7 +151,7 @@ func (r *Repository) CreateRecommendation(ctx context.Context, rec *models.Recom
 
 // ApproveRecommendation marks a recommendation as approved
 func (r *Repository) ApproveRecommendation(ctx context.Context, id uuid.UUID) error {
-	_, err := r.pool.Exec(ctx, `
+	_, err := r.db.Exec(ctx, `
 		UPDATE recommendations 
 		SET status = $2, approved_at = $3 
 		WHERE id = $1
@@ -166,7 +166,7 @@ func (r *Repository) ApproveRecommendation(ctx context.Context, id uuid.UUID) er
 
 // RejectRecommendation marks a recommendation as rejected
 func (r *Repository) RejectRecommendation(ctx context.Context, id uuid.UUID) error {
-	_, err := r.pool.Exec(ctx, `
+	_, err := r.db.Exec(ctx, `
 		UPDATE recommendations 
 		SET status = $2, rejected_at = $3 
 		WHERE id = $1
@@ -181,7 +181,7 @@ func (r *Repository) RejectRecommendation(ctx context.Context, id uuid.UUID) err
 
 // ExecuteRecommendation marks a recommendation as executed with the trade ID
 func (r *Repository) ExecuteRecommendation(ctx context.Context, id uuid.UUID, tradeID uuid.UUID) error {
-	_, err := r.pool.Exec(ctx, `
+	_, err := r.db.Exec(ctx, `
 		UPDATE recommendations 
 		SET status = $2, executed_trade_id = $3 
 		WHERE id = $1

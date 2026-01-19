@@ -12,7 +12,7 @@ import (
 
 // GetPositions returns all positions
 func (r *Repository) GetPositions(ctx context.Context) ([]models.Position, error) {
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.db.Query(ctx, `
 		SELECT id, symbol, quantity, avg_entry_price, current_price, unrealized_pl, side, created_at, updated_at
 		FROM positions
 		ORDER BY symbol
@@ -38,7 +38,7 @@ func (r *Repository) GetPositions(ctx context.Context) ([]models.Position, error
 // GetPosition returns a single position by ID
 func (r *Repository) GetPosition(ctx context.Context, id uuid.UUID) (*models.Position, error) {
 	var p models.Position
-	err := r.pool.QueryRow(ctx, `
+	err := r.db.QueryRow(ctx, `
 		SELECT id, symbol, quantity, avg_entry_price, current_price, unrealized_pl, side, created_at, updated_at
 		FROM positions WHERE id = $1
 	`, id).Scan(&p.ID, &p.Symbol, &p.Quantity, &p.AvgEntryPrice, &p.CurrentPrice, &p.UnrealizedPL, &p.Side, &p.CreatedAt, &p.UpdatedAt)
@@ -56,7 +56,7 @@ func (r *Repository) GetPosition(ctx context.Context, id uuid.UUID) (*models.Pos
 // GetPositionBySymbol returns a position by symbol
 func (r *Repository) GetPositionBySymbol(ctx context.Context, symbol string) (*models.Position, error) {
 	var p models.Position
-	err := r.pool.QueryRow(ctx, `
+	err := r.db.QueryRow(ctx, `
 		SELECT id, symbol, quantity, avg_entry_price, current_price, unrealized_pl, side, created_at, updated_at
 		FROM positions WHERE symbol = $1
 	`, symbol).Scan(&p.ID, &p.Symbol, &p.Quantity, &p.AvgEntryPrice, &p.CurrentPrice, &p.UnrealizedPL, &p.Side, &p.CreatedAt, &p.UpdatedAt)
@@ -73,7 +73,7 @@ func (r *Repository) GetPositionBySymbol(ctx context.Context, symbol string) (*m
 
 // CreatePosition creates a new position
 func (r *Repository) CreatePosition(ctx context.Context, pos *models.Position) error {
-	_, err := r.pool.Exec(ctx, `
+	_, err := r.db.Exec(ctx, `
 		INSERT INTO positions (id, symbol, quantity, avg_entry_price, current_price, unrealized_pl, side, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`, pos.ID, pos.Symbol, pos.Quantity, pos.AvgEntryPrice, pos.CurrentPrice, pos.UnrealizedPL, pos.Side, pos.CreatedAt, pos.UpdatedAt)
@@ -87,7 +87,7 @@ func (r *Repository) CreatePosition(ctx context.Context, pos *models.Position) e
 
 // UpdatePosition updates an existing position
 func (r *Repository) UpdatePosition(ctx context.Context, pos *models.Position) error {
-	_, err := r.pool.Exec(ctx, `
+	_, err := r.db.Exec(ctx, `
 		UPDATE positions 
 		SET quantity = $2, avg_entry_price = $3, current_price = $4, unrealized_pl = $5, side = $6, updated_at = NOW()
 		WHERE id = $1
@@ -102,7 +102,7 @@ func (r *Repository) UpdatePosition(ctx context.Context, pos *models.Position) e
 
 // DeletePosition removes a position
 func (r *Repository) DeletePosition(ctx context.Context, id uuid.UUID) error {
-	_, err := r.pool.Exec(ctx, `DELETE FROM positions WHERE id = $1`, id)
+	_, err := r.db.Exec(ctx, `DELETE FROM positions WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete position: %w", err)
 	}

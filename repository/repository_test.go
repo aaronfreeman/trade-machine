@@ -4,18 +4,28 @@ import (
 	"context"
 	"errors"
 	"os"
+	"sync"
 	"testing"
 	"time"
 
 	"trade-machine/models"
 
 	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
 	"github.com/shopspring/decimal"
 )
 
-// getTestDB returns a repository connected to the test database.
-// If DATABASE_URL is not set, the test is skipped.
-func getTestDB(t *testing.T) *Repository {
+// sharedPool holds a single connection pool shared across all tests.
+// This avoids creating many connections and is more efficient.
+var (
+	sharedPool     *Repository
+	sharedPoolOnce sync.Once
+	sharedPoolErr  error
+)
+
+// getSharedPool returns a shared repository for all tests.
+// The pool is created once and reused across all tests.
+func getSharedPool(t *testing.T) *Repository {
 	t.Helper()
 
 	connString := os.Getenv("DATABASE_URL")
@@ -23,50 +33,61 @@ func getTestDB(t *testing.T) *Repository {
 		t.Skip("DATABASE_URL not set, skipping integration test")
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	sharedPoolOnce.Do(func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
 
-	repo, err := NewRepository(ctx, connString)
-	if err != nil {
-		t.Fatalf("failed to connect to test database: %v", err)
+		sharedPool, sharedPoolErr = NewRepository(ctx, connString)
+	})
+
+	if sharedPoolErr != nil {
+		t.Fatalf("failed to connect to test database: %v", sharedPoolErr)
 	}
 
-	return repo
+	return sharedPool
 }
 
-// cleanupPositions removes all test positions
-func cleanupPositions(t *testing.T, repo *Repository) {
+// getTestDB returns a repository wrapped in a transaction that will be
+// rolled back when the test completes. This ensures test isolation without
+// polluting the database.
+func getTestDB(t *testing.T) *Repository {
 	t.Helper()
+
+	pool := getSharedPool(t)
+
 	ctx := context.Background()
-	repo.pool.Exec(ctx, "DELETE FROM positions WHERE symbol LIKE 'TEST%'")
+	tx, err := pool.pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("failed to begin transaction: %v", err)
+	}
+
+	// Register cleanup to rollback the transaction after the test
+	t.Cleanup(func() {
+		tx.Rollback(ctx)
+	})
+
+	return pool.WithTx(tx)
 }
 
-// cleanupTrades removes all test trades
-func cleanupTrades(t *testing.T, repo *Repository) {
+// getTestDBWithTx returns both the repository and the transaction for tests
+// that need direct access to the transaction (e.g., to test commit behavior).
+func getTestDBWithTx(t *testing.T) (*Repository, pgx.Tx) {
 	t.Helper()
-	ctx := context.Background()
-	repo.pool.Exec(ctx, "DELETE FROM trades WHERE symbol LIKE 'TEST%'")
-}
 
-// cleanupRecommendations removes all test recommendations
-func cleanupRecommendations(t *testing.T, repo *Repository) {
-	t.Helper()
-	ctx := context.Background()
-	repo.pool.Exec(ctx, "DELETE FROM recommendations WHERE symbol LIKE 'TEST%'")
-}
+	pool := getSharedPool(t)
 
-// cleanupAgentRuns removes all test agent runs
-func cleanupAgentRuns(t *testing.T, repo *Repository) {
-	t.Helper()
 	ctx := context.Background()
-	repo.pool.Exec(ctx, "DELETE FROM agent_runs WHERE symbol LIKE 'TEST%'")
-}
+	tx, err := pool.pool.Begin(ctx)
+	if err != nil {
+		t.Fatalf("failed to begin transaction: %v", err)
+	}
 
-// cleanupCache removes all test cache entries
-func cleanupCache(t *testing.T, repo *Repository) {
-	t.Helper()
-	ctx := context.Background()
-	repo.pool.Exec(ctx, "DELETE FROM market_data_cache WHERE symbol LIKE 'TEST%'")
+	// Register cleanup to rollback the transaction after the test
+	t.Cleanup(func() {
+		tx.Rollback(ctx)
+	})
+
+	return pool.WithTx(tx), tx
 }
 
 // =============================================================================
@@ -75,9 +96,6 @@ func cleanupCache(t *testing.T, repo *Repository) {
 
 func TestRepository_Positions_CRUD(t *testing.T) {
 	repo := getTestDB(t)
-	defer repo.Close()
-	defer cleanupPositions(t, repo)
-
 	ctx := context.Background()
 
 	// Create a position
@@ -175,8 +193,6 @@ func TestRepository_Positions_CRUD(t *testing.T) {
 
 func TestRepository_GetPosition_NotFound(t *testing.T) {
 	repo := getTestDB(t)
-	defer repo.Close()
-
 	ctx := context.Background()
 	nonExistentID := uuid.New()
 
@@ -191,8 +207,6 @@ func TestRepository_GetPosition_NotFound(t *testing.T) {
 
 func TestRepository_GetPositionBySymbol_NotFound(t *testing.T) {
 	repo := getTestDB(t)
-	defer repo.Close()
-
 	ctx := context.Background()
 
 	pos, err := repo.GetPositionBySymbol(ctx, "NONEXISTENT")
@@ -210,9 +224,6 @@ func TestRepository_GetPositionBySymbol_NotFound(t *testing.T) {
 
 func TestRepository_Trades_CRUD(t *testing.T) {
 	repo := getTestDB(t)
-	defer repo.Close()
-	defer cleanupTrades(t, repo)
-
 	ctx := context.Background()
 
 	// Create a trade
@@ -271,9 +282,6 @@ func TestRepository_Trades_CRUD(t *testing.T) {
 
 func TestRepository_GetTradesBySymbol(t *testing.T) {
 	repo := getTestDB(t)
-	defer repo.Close()
-	defer cleanupTrades(t, repo)
-
 	ctx := context.Background()
 
 	// Create multiple trades
@@ -304,8 +312,6 @@ func TestRepository_GetTradesBySymbol(t *testing.T) {
 
 func TestRepository_GetTrades_DefaultLimit(t *testing.T) {
 	repo := getTestDB(t)
-	defer repo.Close()
-
 	ctx := context.Background()
 
 	// Test with zero limit (should default to 50)
@@ -327,9 +333,6 @@ func TestRepository_GetTrades_DefaultLimit(t *testing.T) {
 
 func TestRepository_Recommendations_CRUD(t *testing.T) {
 	repo := getTestDB(t)
-	defer repo.Close()
-	defer cleanupRecommendations(t, repo)
-
 	ctx := context.Background()
 
 	// Create a recommendation
@@ -400,9 +403,6 @@ func TestRepository_Recommendations_CRUD(t *testing.T) {
 
 func TestRepository_RejectRecommendation(t *testing.T) {
 	repo := getTestDB(t)
-	defer repo.Close()
-	defer cleanupRecommendations(t, repo)
-
 	ctx := context.Background()
 
 	rec := models.NewRecommendation("TEST006", models.RecommendationActionSell, "Test rejection")
@@ -428,10 +428,6 @@ func TestRepository_RejectRecommendation(t *testing.T) {
 
 func TestRepository_ExecuteRecommendation(t *testing.T) {
 	repo := getTestDB(t)
-	defer repo.Close()
-	defer cleanupRecommendations(t, repo)
-	defer cleanupTrades(t, repo)
-
 	ctx := context.Background()
 
 	// Create recommendation
@@ -462,9 +458,6 @@ func TestRepository_ExecuteRecommendation(t *testing.T) {
 
 func TestRepository_GetRecommendations_FilterByStatus(t *testing.T) {
 	repo := getTestDB(t)
-	defer repo.Close()
-	defer cleanupRecommendations(t, repo)
-
 	ctx := context.Background()
 
 	// Create recommendations with different statuses
@@ -511,9 +504,6 @@ func TestRepository_GetRecommendations_FilterByStatus(t *testing.T) {
 
 func TestRepository_AgentRuns_CRUD(t *testing.T) {
 	repo := getTestDB(t)
-	defer repo.Close()
-	defer cleanupAgentRuns(t, repo)
-
 	ctx := context.Background()
 
 	// Create an agent run
@@ -572,9 +562,6 @@ func TestRepository_AgentRuns_CRUD(t *testing.T) {
 
 func TestRepository_AgentRuns_Fail(t *testing.T) {
 	repo := getTestDB(t)
-	defer repo.Close()
-	defer cleanupAgentRuns(t, repo)
-
 	ctx := context.Background()
 
 	run := models.NewAgentRun(models.AgentTypeNews, "TEST011")
@@ -605,9 +592,6 @@ func TestRepository_AgentRuns_Fail(t *testing.T) {
 
 func TestRepository_GetAgentRuns_FilterByType(t *testing.T) {
 	repo := getTestDB(t)
-	defer repo.Close()
-	defer cleanupAgentRuns(t, repo)
-
 	ctx := context.Background()
 
 	// Create runs of different types
@@ -644,9 +628,6 @@ func TestRepository_GetAgentRuns_FilterByType(t *testing.T) {
 
 func TestRepository_GetRecentRunsForSymbol(t *testing.T) {
 	repo := getTestDB(t)
-	defer repo.Close()
-	defer cleanupAgentRuns(t, repo)
-
 	ctx := context.Background()
 
 	// Create multiple runs for same symbol
@@ -680,9 +661,6 @@ func TestRepository_GetRecentRunsForSymbol(t *testing.T) {
 
 func TestRepository_Cache_SetAndGet(t *testing.T) {
 	repo := getTestDB(t)
-	defer repo.Close()
-	defer cleanupCache(t, repo)
-
 	ctx := context.Background()
 
 	data := map[string]interface{}{
@@ -713,9 +691,6 @@ func TestRepository_Cache_SetAndGet(t *testing.T) {
 
 func TestRepository_Cache_Expiration(t *testing.T) {
 	repo := getTestDB(t)
-	defer repo.Close()
-	defer cleanupCache(t, repo)
-
 	ctx := context.Background()
 
 	data := map[string]interface{}{"test": "data"}
@@ -741,9 +716,6 @@ func TestRepository_Cache_Expiration(t *testing.T) {
 
 func TestRepository_Cache_Upsert(t *testing.T) {
 	repo := getTestDB(t)
-	defer repo.Close()
-	defer cleanupCache(t, repo)
-
 	ctx := context.Background()
 
 	// Set initial data
@@ -766,9 +738,6 @@ func TestRepository_Cache_Upsert(t *testing.T) {
 
 func TestRepository_Cache_Invalidate(t *testing.T) {
 	repo := getTestDB(t)
-	defer repo.Close()
-	defer cleanupCache(t, repo)
-
 	ctx := context.Background()
 
 	data := map[string]interface{}{"test": "data"}
@@ -788,9 +757,6 @@ func TestRepository_Cache_Invalidate(t *testing.T) {
 
 func TestRepository_Cache_InvalidateAllForSymbol(t *testing.T) {
 	repo := getTestDB(t)
-	defer repo.Close()
-	defer cleanupCache(t, repo)
-
 	ctx := context.Background()
 
 	// Set multiple cache entries for same symbol
@@ -816,9 +782,6 @@ func TestRepository_Cache_InvalidateAllForSymbol(t *testing.T) {
 
 func TestRepository_Cache_CleanExpired(t *testing.T) {
 	repo := getTestDB(t)
-	defer repo.Close()
-	defer cleanupCache(t, repo)
-
 	ctx := context.Background()
 
 	// Set cache with very short TTL
@@ -841,8 +804,6 @@ func TestRepository_Cache_CleanExpired(t *testing.T) {
 
 func TestRepository_Cache_NotFound(t *testing.T) {
 	repo := getTestDB(t)
-	defer repo.Close()
-
 	ctx := context.Background()
 
 	cached, err := repo.GetCachedData(ctx, "NONEXISTENT", "quote")
@@ -869,11 +830,9 @@ func TestNewRepository_InvalidConnection(t *testing.T) {
 }
 
 func TestRepository_Health(t *testing.T) {
-	repo := getTestDB(t)
-	defer repo.Close()
-
+	pool := getSharedPool(t)
 	ctx := context.Background()
-	err := repo.Health(ctx)
+	err := pool.Health(ctx)
 	if err != nil {
 		t.Errorf("Health() should return nil for valid connection: %v", err)
 	}

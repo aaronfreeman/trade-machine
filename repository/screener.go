@@ -28,7 +28,7 @@ func (r *Repository) CreateScreenerRun(ctx context.Context, run *models.Screener
 		return fmt.Errorf("failed to marshal candidates: %w", err)
 	}
 
-	_, err = r.pool.Exec(ctx, `
+	_, err = r.db.Exec(ctx, `
 		INSERT INTO screener_runs (id, run_at, criteria, candidates, top_picks, duration_ms, status, error, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 	`, run.ID, run.RunAt, criteriaJSON, candidatesJSON, run.TopPicks, run.DurationMs, run.Status, run.Error, run.CreatedAt)
@@ -52,7 +52,7 @@ func (r *Repository) UpdateScreenerRun(ctx context.Context, run *models.Screener
 		return fmt.Errorf("failed to marshal candidates: %w", err)
 	}
 
-	_, err = r.pool.Exec(ctx, `
+	_, err = r.db.Exec(ctx, `
 		UPDATE screener_runs
 		SET candidates = $2, top_picks = $3, duration_ms = $4, status = $5, error = $6
 		WHERE id = $1
@@ -75,7 +75,7 @@ func (r *Repository) GetScreenerRun(ctx context.Context, id uuid.UUID) (*models.
 	var run models.ScreenerRun
 	var criteriaJSON, candidatesJSON []byte
 
-	err := r.pool.QueryRow(ctx, `
+	err := r.db.QueryRow(ctx, `
 		SELECT id, run_at, criteria, candidates, top_picks, duration_ms, status, error, created_at
 		FROM screener_runs
 		WHERE id = $1
@@ -109,7 +109,7 @@ func (r *Repository) GetLatestScreenerRun(ctx context.Context) (*models.Screener
 	var run models.ScreenerRun
 	var criteriaJSON, candidatesJSON []byte
 
-	err := r.pool.QueryRow(ctx, `
+	err := r.db.QueryRow(ctx, `
 		SELECT id, run_at, criteria, candidates, top_picks, duration_ms, status, error, created_at
 		FROM screener_runs
 		ORDER BY run_at DESC
@@ -145,7 +145,7 @@ func (r *Repository) GetScreenerRunHistory(ctx context.Context, limit int) ([]mo
 		limit = 10
 	}
 
-	rows, err := r.pool.Query(ctx, `
+	rows, err := r.db.Query(ctx, `
 		SELECT id, run_at, criteria, candidates, top_picks, duration_ms, status, error, created_at
 		FROM screener_runs
 		ORDER BY run_at DESC

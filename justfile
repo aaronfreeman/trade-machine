@@ -35,14 +35,19 @@ fmt:
     go fmt ./...
     templ fmt .
 
-# Run tests
+# Test database URL (separate from development database)
+test_db_url := "postgres://trademachine:trademachine_dev@localhost:5432/trademachine_test?sslmode=disable"
+
+# Run tests (uses separate test database, runs migrations automatically)
 test:
     templ generate
-    DATABASE_URL="postgres://trademachine:trademachine_dev@localhost:5432/trademachine?sslmode=disable" go test -count=1 -cover ./...
+    @goose -dir migrations postgres "host=localhost port=5432 user=trademachine password=trademachine_dev dbname=trademachine_test sslmode=disable" up 2>&1 | grep -v "no migrations to run" || true
+    DATABASE_URL="{{test_db_url}}" go test -count=1 -cover ./...
 
 # Run tests with coverage report (opens in browser)
 coverage:
-    DATABASE_URL="postgres://trademachine:trademachine_dev@localhost:5432/trademachine?sslmode=disable" go test -count=1 -coverprofile=coverage.out ./...
+    @goose -dir migrations postgres "host=localhost port=5432 user=trademachine password=trademachine_dev dbname=trademachine_test sslmode=disable" up 2>&1 | grep -v "no migrations to run" || true
+    DATABASE_URL="{{test_db_url}}" go test -count=1 -coverprofile=coverage.out ./...
     go tool cover -html=coverage.out
 
 # Check for issues
@@ -53,11 +58,26 @@ check:
 watch:
     templ generate --watch
 
+# Run migrations on development database
 migrate:
 	goose -dir migrations postgres "host=localhost port=5432 user=trademachine password=trademachine_dev dbname=trademachine sslmode=disable" up
 
+# Rollback migrations on development database
 migrate-down:
 	goose -dir migrations postgres "host=localhost port=5432 user=trademachine password=trademachine_dev dbname=trademachine sslmode=disable" down
+
+# Run migrations on test database
+migrate-test:
+	goose -dir migrations postgres "host=localhost port=5432 user=trademachine password=trademachine_dev dbname=trademachine_test sslmode=disable" up
+
+# Rollback migrations on test database
+migrate-test-down:
+	goose -dir migrations postgres "host=localhost port=5432 user=trademachine password=trademachine_dev dbname=trademachine_test sslmode=disable" down
+
+# Reset test database (rollback all and re-apply)
+migrate-test-reset:
+	goose -dir migrations postgres "host=localhost port=5432 user=trademachine password=trademachine_dev dbname=trademachine_test sslmode=disable" reset
+	goose -dir migrations postgres "host=localhost port=5432 user=trademachine password=trademachine_dev dbname=trademachine_test sslmode=disable" up
 
 docker-up:
 	docker-compose up -d
@@ -66,6 +86,13 @@ docker-up:
 
 docker-down:
 	docker-compose down
+
+# Initialize test database (for existing containers where init script didn't run)
+init-test-db:
+	@echo "Creating test database if it doesn't exist..."
+	@docker exec trademachine-postgres psql -U trademachine -d postgres -c "CREATE DATABASE trademachine_test;" 2>/dev/null || echo "Test database already exists"
+	@echo "Running migrations on test database..."
+	goose -dir migrations postgres "host=localhost port=5432 user=trademachine password=trademachine_dev dbname=trademachine_test sslmode=disable" up
 
 # Start E2E test database
 e2e-up:

@@ -12,6 +12,7 @@ import (
 
 	"trade-machine/config"
 	"trade-machine/internal/app"
+	"trade-machine/internal/settings"
 	"trade-machine/models"
 	"trade-machine/services"
 	"trade-machine/templates"
@@ -581,3 +582,194 @@ var _ = models.Trade{}
 var _ = models.Recommendation{}
 var _ = models.AgentRun{}
 var _ = models.ScreenerRun{}
+
+// HandleGetSettings returns masked API key settings
+func (h *Handler) HandleGetSettings(w http.ResponseWriter, r *http.Request) {
+	settingsStore := h.app.Settings()
+	if settingsStore == nil {
+		if isHTMXRequest(r) {
+			h.htmlError(w, "Settings not available", r)
+			return
+		}
+		h.jsonError(w, "Settings not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	masked := settingsStore.GetMaskedSettings()
+
+	if isHTMXRequest(r) {
+		h.htmlResponse(w, partials.SettingsForm(masked), r)
+		return
+	}
+
+	h.jsonResponse(w, masked)
+}
+
+// HandleUpdateAPIKey updates a single API key configuration
+func (h *Handler) HandleUpdateAPIKey(w http.ResponseWriter, r *http.Request) {
+	settingsStore := h.app.Settings()
+	if settingsStore == nil {
+		if isHTMXRequest(r) {
+			h.htmlError(w, "Settings not available", r)
+			return
+		}
+		h.jsonError(w, "Settings not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	var req settings.APIKeyConfig
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		// Try form values
+		req.ServiceName = settings.ServiceName(r.FormValue("service_name"))
+		req.APIKey = r.FormValue("api_key")
+		req.APISecret = r.FormValue("api_secret")
+		req.BaseURL = r.FormValue("base_url")
+		req.Region = r.FormValue("region")
+		req.ModelID = r.FormValue("model_id")
+	}
+
+	if req.ServiceName == "" {
+		if isHTMXRequest(r) {
+			h.htmlError(w, "Service name is required", r)
+			return
+		}
+		h.jsonError(w, "Service name is required", http.StatusBadRequest)
+		return
+	}
+
+	if err := settingsStore.SetAPIKey(&req); err != nil {
+		if isHTMXRequest(r) {
+			h.htmlError(w, err.Error(), r)
+			return
+		}
+		h.jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if isHTMXRequest(r) {
+		// Return updated settings form
+		masked := settingsStore.GetMaskedSettings()
+		h.htmlResponse(w, partials.SettingsForm(masked), r)
+		return
+	}
+
+	h.jsonResponse(w, map[string]string{"status": "saved", "service": string(req.ServiceName)})
+}
+
+// HandleTestAPIKey tests if an API key is valid
+func (h *Handler) HandleTestAPIKey(w http.ResponseWriter, r *http.Request) {
+	service := chi.URLParam(r, "service")
+	if service == "" {
+		if isHTMXRequest(r) {
+			h.htmlError(w, "Service name is required", r)
+			return
+		}
+		h.jsonError(w, "Service name is required", http.StatusBadRequest)
+		return
+	}
+
+	settingsStore := h.app.Settings()
+	if settingsStore == nil {
+		if isHTMXRequest(r) {
+			h.htmlError(w, "Settings not available", r)
+			return
+		}
+		h.jsonError(w, "Settings not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	serviceName := settings.ServiceName(service)
+	config := settingsStore.GetAPIKey(serviceName)
+	if config == nil {
+		if isHTMXRequest(r) {
+			h.htmlResponse(w, partials.ServiceStatus(serviceName, false, "Not configured"), r)
+			return
+		}
+		h.jsonError(w, "Service not configured", http.StatusNotFound)
+		return
+	}
+
+	validator := settings.NewValidator()
+	result, err := validator.ValidateAPIKey(r.Context(), config)
+	if err != nil {
+		if isHTMXRequest(r) {
+			h.htmlResponse(w, partials.ServiceStatus(serviceName, false, err.Error()), r)
+			return
+		}
+		h.jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if isHTMXRequest(r) {
+		h.htmlResponse(w, partials.ServiceStatus(serviceName, result.Valid, result.Message), r)
+		return
+	}
+
+	h.jsonResponse(w, result)
+}
+
+// HandleDeleteAPIKey removes an API key configuration
+func (h *Handler) HandleDeleteAPIKey(w http.ResponseWriter, r *http.Request) {
+	service := chi.URLParam(r, "service")
+	if service == "" {
+		if isHTMXRequest(r) {
+			h.htmlError(w, "Service name is required", r)
+			return
+		}
+		h.jsonError(w, "Service name is required", http.StatusBadRequest)
+		return
+	}
+
+	settingsStore := h.app.Settings()
+	if settingsStore == nil {
+		if isHTMXRequest(r) {
+			h.htmlError(w, "Settings not available", r)
+			return
+		}
+		h.jsonError(w, "Settings not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	serviceName := settings.ServiceName(service)
+	if err := settingsStore.DeleteAPIKey(serviceName); err != nil {
+		if isHTMXRequest(r) {
+			h.htmlError(w, err.Error(), r)
+			return
+		}
+		h.jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if isHTMXRequest(r) {
+		// Return updated settings form
+		masked := settingsStore.GetMaskedSettings()
+		h.htmlResponse(w, partials.SettingsForm(masked), r)
+		return
+	}
+
+	h.jsonResponse(w, map[string]string{"status": "deleted", "service": service})
+}
+
+// HandleSettingsPage renders the settings page
+func (h *Handler) HandleSettingsPage(w http.ResponseWriter, r *http.Request) {
+	settingsStore := h.app.Settings()
+	if settingsStore == nil {
+		if isHTMXRequest(r) {
+			h.htmlError(w, "Settings not available", r)
+			return
+		}
+		h.jsonError(w, "Settings not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	masked := settingsStore.GetMaskedSettings()
+
+	if isHTMXRequest(r) {
+		h.htmlResponse(w, partials.SettingsForm(masked), r)
+		return
+	}
+
+	// For non-HTMX requests, render the full page
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	templates.Index().Render(r.Context(), w)
+}

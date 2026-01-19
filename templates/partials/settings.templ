@@ -1,0 +1,243 @@
+package partials
+
+import (
+	"trade-machine/internal/settings"
+)
+
+// SettingsForm renders the complete settings form
+templ SettingsForm(services map[settings.ServiceName]*settings.MaskedAPIKeyConfig) {
+	<div class="d-flex justify-content-between align-items-center mb-4">
+		<div>
+			<h3 class="mb-1">
+				<i class="bi bi-gear me-2" style="color: var(--accent-primary);"></i>
+				API Configuration
+			</h3>
+			<small class="text-muted">Configure your API keys to enable trading and analysis features</small>
+		</div>
+	</div>
+
+	<div class="row g-4">
+		<!-- OpenAI -->
+		@ServiceCard(settings.ServiceOpenAI, services[settings.ServiceOpenAI], true, false, false)
+
+		<!-- Alpaca Markets -->
+		@ServiceCard(settings.ServiceAlpaca, services[settings.ServiceAlpaca], true, true, false)
+
+		<!-- Alpha Vantage -->
+		@ServiceCard(settings.ServiceAlphaVantage, services[settings.ServiceAlphaVantage], true, false, false)
+
+		<!-- NewsAPI -->
+		@ServiceCard(settings.ServiceNewsAPI, services[settings.ServiceNewsAPI], true, false, false)
+
+		<!-- FMP -->
+		@ServiceCard(settings.ServiceFMP, services[settings.ServiceFMP], true, false, false)
+
+		<!-- AWS Bedrock -->
+		@ServiceCard(settings.ServiceAWSBedrock, services[settings.ServiceAWSBedrock], false, false, true)
+	</div>
+
+	<div class="card mt-4">
+		<div class="card-body">
+			<h5 class="mb-3">
+				<i class="bi bi-info-circle me-2"></i>
+				About API Keys
+			</h5>
+			<p class="text-muted mb-2">
+				API keys are stored locally in an encrypted file on your computer. They are never sent to any server except the respective API providers.
+			</p>
+			<p class="text-muted mb-0">
+				<strong>Required for analysis:</strong> At least one AI provider (OpenAI or AWS Bedrock), Alpaca, Alpha Vantage, and NewsAPI.
+				<br/>
+				<strong>Required for screening:</strong> FMP (Financial Modeling Prep).
+			</p>
+		</div>
+	</div>
+}
+
+// ServiceCard renders a single service configuration card
+templ ServiceCard(service settings.ServiceName, config *settings.MaskedAPIKeyConfig, needsAPIKey bool, needsSecret bool, needsRegion bool) {
+	<div class="col-md-6">
+		<div class="card h-100">
+			<div class="card-header d-flex justify-content-between align-items-center">
+				<div>
+					<h5 class="mb-0">{ settings.ServiceDisplayName(service) }</h5>
+					<small class="text-muted">{ settings.ServiceDescription(service) }</small>
+				</div>
+				<div id={ "status-" + string(service) }>
+					@ServiceStatusBadge(config != nil && config.IsConfigured)
+				</div>
+			</div>
+			<div class="card-body">
+				<form
+					hx-post="/api/settings/api-keys"
+					hx-target="#settings-content"
+					hx-swap="innerHTML"
+				>
+					<input type="hidden" name="service_name" value={ string(service) }/>
+
+					if needsAPIKey {
+						<div class="mb-3">
+							<label class="form-label">API Key</label>
+							<input
+								type="password"
+								class="form-control"
+								name="api_key"
+								placeholder={ getPlaceholder(config, "api_key") }
+								autocomplete="off"
+							/>
+							if config != nil && config.APIKey != "" {
+								<small class="text-muted">Current: { config.APIKey }</small>
+							}
+						</div>
+					}
+
+					if needsSecret {
+						<div class="mb-3">
+							<label class="form-label">API Secret</label>
+							<input
+								type="password"
+								class="form-control"
+								name="api_secret"
+								placeholder={ getPlaceholder(config, "api_secret") }
+								autocomplete="off"
+							/>
+							if config != nil && config.APISecret != "" {
+								<small class="text-muted">Current: { config.APISecret }</small>
+							}
+						</div>
+
+						<div class="mb-3">
+							<label class="form-label">Base URL (optional)</label>
+							<input
+								type="text"
+								class="form-control"
+								name="base_url"
+								placeholder="https://paper-api.alpaca.markets"
+								value={ getConfigValue(config, "base_url") }
+							/>
+							<small class="text-muted">Leave empty for paper trading, or use live URL for real trading</small>
+						</div>
+					}
+
+					if needsRegion {
+						<div class="mb-3">
+							<label class="form-label">AWS Region</label>
+							<input
+								type="text"
+								class="form-control"
+								name="region"
+								placeholder="us-east-1"
+								value={ getConfigValue(config, "region") }
+							/>
+						</div>
+
+						<div class="mb-3">
+							<label class="form-label">Model ID</label>
+							<input
+								type="text"
+								class="form-control"
+								name="model_id"
+								placeholder="anthropic.claude-3-sonnet-20240229-v1:0"
+								value={ getConfigValue(config, "model_id") }
+							/>
+						</div>
+					}
+
+					<div class="d-flex gap-2">
+						<button type="submit" class="btn btn-primary">
+							<i class="bi bi-check-lg me-1"></i>
+							Save
+						</button>
+						if config != nil && config.IsConfigured {
+							<button
+								type="button"
+								class="btn btn-secondary"
+								hx-post={ "/api/settings/api-keys/" + string(service) + "/test" }
+								hx-target={ "#status-" + string(service) }
+								hx-swap="innerHTML"
+							>
+								<i class="bi bi-plug me-1"></i>
+								Test Connection
+							</button>
+							<button
+								type="button"
+								class="btn btn-outline-danger"
+								hx-delete={ "/api/settings/api-keys/" + string(service) }
+								hx-target="#settings-content"
+								hx-swap="innerHTML"
+								hx-confirm="Are you sure you want to remove this API key?"
+							>
+								<i class="bi bi-trash"></i>
+							</button>
+						}
+					</div>
+				</form>
+			</div>
+		</div>
+	</div>
+}
+
+// ServiceStatusBadge renders the configured/not configured badge
+templ ServiceStatusBadge(isConfigured bool) {
+	if isConfigured {
+		<span class="badge badge-approved">
+			<i class="bi bi-check-circle me-1"></i>
+			Configured
+		</span>
+	} else {
+		<span class="badge badge-pending">
+			<i class="bi bi-exclamation-circle me-1"></i>
+			Not Set
+		</span>
+	}
+}
+
+// ServiceStatus renders the connection test result
+templ ServiceStatus(service settings.ServiceName, valid bool, message string) {
+	if valid {
+		<span class="badge badge-approved">
+			<i class="bi bi-check-circle me-1"></i>
+			Connected
+		</span>
+	} else {
+		<span class="badge badge-rejected" title={ message }>
+			<i class="bi bi-x-circle me-1"></i>
+			Failed
+		</span>
+	}
+}
+
+// Helper functions
+func getPlaceholder(config *settings.MaskedAPIKeyConfig, field string) string {
+	if config == nil {
+		return "Enter API key"
+	}
+	switch field {
+	case "api_key":
+		if config.APIKey != "" {
+			return "Enter new key to update"
+		}
+		return "Enter API key"
+	case "api_secret":
+		if config.APISecret != "" {
+			return "Enter new secret to update"
+		}
+		return "Enter API secret"
+	}
+	return ""
+}
+
+func getConfigValue(config *settings.MaskedAPIKeyConfig, field string) string {
+	if config == nil {
+		return ""
+	}
+	switch field {
+	case "base_url":
+		return config.BaseURL
+	case "region":
+		return config.Region
+	case "model_id":
+		return config.ModelID
+	}
+	return ""
+}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"trade-machine/config"
+	"trade-machine/internal/settings"
 	"trade-machine/models"
 	"trade-machine/services"
 
@@ -47,6 +48,7 @@ type App struct {
 	portfolioManager PortfolioManagerInterface
 	screener         ScreenerInterface
 	alpacaService    services.AlpacaServiceInterface
+	settings         *settings.Store
 	analysisSem      chan struct{}
 }
 
@@ -86,6 +88,16 @@ func (a *App) SetScreener(s ScreenerInterface) {
 // Screener returns the screener interface
 func (a *App) Screener() ScreenerInterface {
 	return a.screener
+}
+
+// SetSettings sets the settings store (optional dependency)
+func (a *App) SetSettings(s *settings.Store) {
+	a.settings = s
+}
+
+// Settings returns the settings store
+func (a *App) Settings() *settings.Store {
+	return a.settings
 }
 
 // AnalyzeStock runs all agents to analyze a stock and generate a recommendation

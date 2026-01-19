@@ -64,6 +64,14 @@ func NewRouter(h *Handler, cfg *config.Config) http.Handler {
 			r.Get("/runs/{id}", h.HandleGetScreenerRun)
 			r.Get("/picks", h.HandleGetTopPicks)
 		})
+
+		// Settings
+		r.Route("/settings", func(r chi.Router) {
+			r.Get("/", h.HandleGetSettings)
+			r.Post("/api-keys", h.HandleUpdateAPIKey)
+			r.Post("/api-keys/{service}/test", h.HandleTestAPIKey)
+			r.Delete("/api-keys/{service}", h.HandleDeleteAPIKey)
+		})
 	})
 
 	return r

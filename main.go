@@ -8,6 +8,7 @@ import (
 	"trade-machine/config"
 	"trade-machine/internal/api"
 	"trade-machine/internal/app"
+	"trade-machine/internal/settings"
 	"trade-machine/observability"
 	"trade-machine/repository"
 	"trade-machine/screener"
@@ -151,6 +152,17 @@ func main() {
 
 	// Initialize app
 	application := app.New(cfg, repo, portfolioManager, alpacaService)
+
+	// Initialize Settings Store
+	settingsPassphrase := os.Getenv("SETTINGS_PASSPHRASE")
+	settingsDir := os.Getenv("SETTINGS_DIR")
+	settingsStore, err := settings.NewStore(settingsDir, settingsPassphrase)
+	if err != nil {
+		observability.Warn("failed to initialize settings store", "error", err)
+	} else {
+		application.SetSettings(settingsStore)
+		observability.Info("settings store initialized")
+	}
 
 	// Initialize Value Screener if dependencies are available
 	if fmpService != nil && portfolioManager != nil && repo != nil {

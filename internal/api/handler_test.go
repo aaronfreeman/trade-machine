@@ -179,7 +179,7 @@ func TestHandler_GetRecommendations(t *testing.T) {
 func TestHandler_ApproveRecommendation(t *testing.T) {
 	t.Run("invalid UUID", func(t *testing.T) {
 		ctx := context.Background()
-		connString := "host=localhost port=5432 user=trademachine password=trademachine_dev dbname=trademachine sslmode=disable"
+		connString := "host=localhost port=5432 user=postgres password=postgres dbname=trademachine_test sslmode=disable"
 		repo, err := repository.NewRepository(ctx, connString)
 		if err != nil {
 			t.Skip("database not available")
@@ -449,7 +449,7 @@ func TestHandler_GetPortfolio(t *testing.T) {
 // Integration tests with database
 func TestIntegration_WithDatabase(t *testing.T) {
 	ctx := context.Background()
-	connString := "postgres://trademachine:trademachine_dev@localhost:5432/trademachine?sslmode=disable"
+	connString := "postgres://postgres:postgres@localhost:5432/trademachine_test?sslmode=disable"
 	repo, err := repository.NewRepository(ctx, connString)
 	if err != nil {
 		t.Skip("database not available")
@@ -633,7 +633,7 @@ func TestHandler_OptionsRequest(t *testing.T) {
 
 func TestHandler_GetRecommendations_WithStatus(t *testing.T) {
 	ctx := context.Background()
-	connString := "postgres://trademachine:trademachine_dev@localhost:5432/trademachine?sslmode=disable"
+	connString := "postgres://postgres:postgres@localhost:5432/trademachine_test?sslmode=disable"
 	repo, err := repository.NewRepository(ctx, connString)
 	if err != nil {
 		t.Skip("database not available")
@@ -671,7 +671,7 @@ func TestHandler_AnalyzeStock_InvalidJSON(t *testing.T) {
 
 func TestHandler_GetAgentRuns_WithType(t *testing.T) {
 	ctx := context.Background()
-	connString := "postgres://trademachine:trademachine_dev@localhost:5432/trademachine?sslmode=disable"
+	connString := "postgres://postgres:postgres@localhost:5432/trademachine_test?sslmode=disable"
 	repo, err := repository.NewRepository(ctx, connString)
 	if err != nil {
 		t.Skip("database not available")

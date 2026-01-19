@@ -5,8 +5,8 @@ services:
     image: postgres:16-alpine
     container_name: trademachine-postgres
     environment:
-      POSTGRES_USER: trademachine
-      POSTGRES_PASSWORD: trademachine_dev
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
       POSTGRES_DB: trademachine
     ports:
       - "5432:5432"
@@ -14,7 +14,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/init-test-db.sql:/docker-entrypoint-initdb.d/init-test-db.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U trademachine"]
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
       interval: 10s
       timeout: 5s
       retries: 5

@@ -110,7 +110,7 @@ func TestApp_Shutdown(t *testing.T) {
 	ctx := context.Background()
 
 	t.Run("with repository", func(t *testing.T) {
-		connString := "postgres://trademachine:trademachine_dev@localhost:5432/trademachine?sslmode=disable"
+		connString := "postgres://postgres:postgres@localhost:5432/trademachine_test?sslmode=disable"
 		repo, err := repository.NewRepository(ctx, connString)
 		if err != nil {
 			t.Skip("database not available")
@@ -194,7 +194,7 @@ func TestApp_RejectRecommendation_InvalidUUID(t *testing.T) {
 
 func TestApp_RejectRecommendation_WithDatabase(t *testing.T) {
 	ctx := context.Background()
-	connString := "postgres://trademachine:trademachine_dev@localhost:5432/trademachine?sslmode=disable"
+	connString := "postgres://postgres:postgres@localhost:5432/trademachine_test?sslmode=disable"
 	repo, err := repository.NewRepository(ctx, connString)
 	if err != nil {
 		t.Skip("database not available")

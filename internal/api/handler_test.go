@@ -896,6 +896,126 @@ func TestHandler_UpdateAPIKey(t *testing.T) {
 			t.Errorf("expected status 200, got %d", w.Code)
 		}
 	})
+
+	t.Run("preserves existing key when submitting empty form", func(t *testing.T) {
+		a := testAppWithSettings(t)
+		router := testRouter(a)
+
+		// First, save an API key
+		req := httptest.NewRequest(http.MethodPost, "/api/settings/api-keys",
+			strings.NewReader("service_name=openai&api_key=sk-test-key-12345"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected status 200 when saving key, got %d: %s", w.Code, w.Body.String())
+		}
+
+		// Verify the key was saved
+		savedKey := a.Settings().GetAPIKey("openai")
+		if savedKey == nil || savedKey.APIKey != "sk-test-key-12345" {
+			t.Fatalf("expected key to be saved, got %v", savedKey)
+		}
+
+		// Now submit the form with an empty API key field (simulating user clicking save without entering anything)
+		req = httptest.NewRequest(http.MethodPost, "/api/settings/api-keys",
+			strings.NewReader("service_name=openai&api_key="))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w = httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected status 200 when submitting empty form, got %d: %s", w.Code, w.Body.String())
+		}
+
+		// Verify the original key is still preserved
+		preservedKey := a.Settings().GetAPIKey("openai")
+		if preservedKey == nil {
+			t.Fatal("expected key to be preserved, got nil")
+		}
+		if preservedKey.APIKey != "sk-test-key-12345" {
+			t.Errorf("expected key to be preserved as 'sk-test-key-12345', got %q", preservedKey.APIKey)
+		}
+	})
+
+	t.Run("updates key when new value provided", func(t *testing.T) {
+		a := testAppWithSettings(t)
+		router := testRouter(a)
+
+		// First, save an API key
+		req := httptest.NewRequest(http.MethodPost, "/api/settings/api-keys",
+			strings.NewReader("service_name=openai&api_key=sk-old-key"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected status 200 when saving key, got %d", w.Code)
+		}
+
+		// Now update with a new key
+		req = httptest.NewRequest(http.MethodPost, "/api/settings/api-keys",
+			strings.NewReader("service_name=openai&api_key=sk-new-key"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w = httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected status 200 when updating key, got %d", w.Code)
+		}
+
+		// Verify the key was updated
+		updatedKey := a.Settings().GetAPIKey("openai")
+		if updatedKey == nil {
+			t.Fatal("expected key to exist, got nil")
+		}
+		if updatedKey.APIKey != "sk-new-key" {
+			t.Errorf("expected key to be updated to 'sk-new-key', got %q", updatedKey.APIKey)
+		}
+	})
+
+	t.Run("preserves other fields when updating only API key", func(t *testing.T) {
+		a := testAppWithSettings(t)
+		router := testRouter(a)
+
+		// Save Alpaca config with key, secret, and base URL
+		req := httptest.NewRequest(http.MethodPost, "/api/settings/api-keys",
+			strings.NewReader("service_name=alpaca&api_key=AKID123&api_secret=secret456&base_url=https://paper-api.alpaca.markets"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected status 200 when saving config, got %d", w.Code)
+		}
+
+		// Now update only the API key, leaving other fields empty
+		req = httptest.NewRequest(http.MethodPost, "/api/settings/api-keys",
+			strings.NewReader("service_name=alpaca&api_key=AKID789&api_secret=&base_url="))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w = httptest.NewRecorder()
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Fatalf("expected status 200 when updating key, got %d", w.Code)
+		}
+
+		// Verify the key was updated but other fields were preserved
+		config := a.Settings().GetAPIKey("alpaca")
+		if config == nil {
+			t.Fatal("expected config to exist, got nil")
+		}
+		if config.APIKey != "AKID789" {
+			t.Errorf("expected API key to be updated to 'AKID789', got %q", config.APIKey)
+		}
+		if config.APISecret != "secret456" {
+			t.Errorf("expected API secret to be preserved as 'secret456', got %q", config.APISecret)
+		}
+		if config.BaseURL != "https://paper-api.alpaca.markets" {
+			t.Errorf("expected base URL to be preserved as 'https://paper-api.alpaca.markets', got %q", config.BaseURL)
+		}
+	})
 }
 
 func TestHandler_AnalyzeStock_FormData(t *testing.T) {

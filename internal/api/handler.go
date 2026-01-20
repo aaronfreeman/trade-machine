@@ -655,6 +655,39 @@ func (h *Handler) HandleUpdateAPIKey(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Check if at least one field has a value to update
+	hasUpdate := req.APIKey != "" || req.APISecret != "" || req.BaseURL != "" || req.Region != "" || req.ModelID != ""
+	if !hasUpdate {
+		// No fields to update - just return current state
+		if isHTMXRequest(r) {
+			masked := settingsStore.GetMaskedSettings()
+			h.htmlResponse(w, partials.SettingsForm(masked), r)
+			return
+		}
+		h.jsonResponse(w, map[string]string{"status": "no changes", "service": string(req.ServiceName)})
+		return
+	}
+
+	// Merge with existing config to preserve fields not being updated
+	existingConfig := settingsStore.GetAPIKey(req.ServiceName)
+	if existingConfig != nil {
+		if req.APIKey == "" {
+			req.APIKey = existingConfig.APIKey
+		}
+		if req.APISecret == "" {
+			req.APISecret = existingConfig.APISecret
+		}
+		if req.BaseURL == "" {
+			req.BaseURL = existingConfig.BaseURL
+		}
+		if req.Region == "" {
+			req.Region = existingConfig.Region
+		}
+		if req.ModelID == "" {
+			req.ModelID = existingConfig.ModelID
+		}
+	}
+
 	if err := settingsStore.SetAPIKey(&req); err != nil {
 		if isHTMXRequest(r) {
 			h.htmlError(w, err.Error(), r)

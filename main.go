@@ -125,7 +125,13 @@ func main() {
 	}
 
 	// Initialize app
-	application := app.New(cfg, repo, portfolioManager, alpacaService)
+	// Note: We must pass nil explicitly as the interface type to avoid typed nil issues.
+	// In Go, an interface holding a nil concrete pointer is not itself nil.
+	var repoInterface app.RepositoryInterface
+	if repo != nil {
+		repoInterface = repo
+	}
+	application := app.New(cfg, repoInterface, portfolioManager, alpacaService)
 
 	// Initialize Settings Store
 	settingsPassphrase := os.Getenv("SETTINGS_PASSPHRASE")

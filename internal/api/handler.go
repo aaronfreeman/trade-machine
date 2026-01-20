@@ -227,8 +227,11 @@ func (h *Handler) HandleAnalyzeStock(w http.ResponseWriter, r *http.Request) {
 		Symbol string `json:"symbol"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		// Try form value
+	contentType := r.Header.Get("Content-Type")
+	if strings.Contains(contentType, "application/json") {
+		_ = json.NewDecoder(r.Body).Decode(&req)
+	} else {
+		_ = r.ParseForm()
 		req.Symbol = r.FormValue("symbol")
 	}
 
@@ -241,7 +244,6 @@ func (h *Handler) HandleAnalyzeStock(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Normalize symbol to uppercase
 	req.Symbol = strings.ToUpper(strings.TrimSpace(req.Symbol))
 
 	if err := h.ValidateSymbol(req.Symbol); err != nil {
@@ -411,7 +413,6 @@ func (h *Handler) HandleRunScreener(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if isHTMXRequest(r) {
-		// Get the top picks from the run to display in TodaysPicks view
 		picks, _ := h.app.GetTopPicks()
 		h.htmlResponse(w, partials.TodaysPicks(run, picks), r)
 		return
@@ -618,10 +619,8 @@ func (h *Handler) HandleUpdateAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req settings.APIKeyConfig
-
-	// Check Content-Type to determine how to parse the request
 	contentType := r.Header.Get("Content-Type")
-	if strings.HasPrefix(contentType, "application/json") {
+	if strings.Contains(contentType, "application/json") {
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			if isHTMXRequest(r) {
 				h.htmlError(w, "Invalid JSON request", r)
@@ -631,13 +630,12 @@ func (h *Handler) HandleUpdateAPIKey(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		// Parse as form data (default for HTMX forms)
 		if err := r.ParseForm(); err != nil {
 			if isHTMXRequest(r) {
-				h.htmlError(w, "Invalid form data", r)
+				h.htmlError(w, "Failed to parse form", r)
 				return
 			}
-			h.jsonError(w, "Invalid form data", http.StatusBadRequest)
+			h.jsonError(w, "Failed to parse form", http.StatusBadRequest)
 			return
 		}
 		req.ServiceName = settings.ServiceName(r.FormValue("service_name"))
@@ -667,7 +665,6 @@ func (h *Handler) HandleUpdateAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if isHTMXRequest(r) {
-		// Return updated settings form
 		masked := settingsStore.GetMaskedSettings()
 		h.htmlResponse(w, partials.SettingsForm(masked), r)
 		return
@@ -761,7 +758,6 @@ func (h *Handler) HandleDeleteAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if isHTMXRequest(r) {
-		// Return updated settings form
 		masked := settingsStore.GetMaskedSettings()
 		h.htmlResponse(w, partials.SettingsForm(masked), r)
 		return
@@ -805,7 +801,6 @@ func (h *Handler) HandleSettingsPage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// For non-HTMX requests, render the full page
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	templates.Index().Render(r.Context(), w)
 }

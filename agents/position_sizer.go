@@ -76,17 +76,14 @@ func (ps *DefaultPositionSizer) CalculateQuantity(
 	confidence float64,
 	existingPosition *models.Position,
 ) (decimal.Decimal, error) {
-	// HOLD actions don't need quantity
 	if action == models.RecommendationActionHold {
 		return decimal.Zero, nil
 	}
 
-	// Can't calculate without price
 	if currentPrice.IsZero() || currentPrice.IsNegative() {
 		return decimal.NewFromInt(ps.config.MinShares), nil
 	}
 
-	// Handle SELL - sell existing position or minimum
 	if action == models.RecommendationActionSell {
 		if existingPosition != nil && existingPosition.Quantity.GreaterThan(decimal.Zero) {
 			return existingPosition.Quantity, nil
@@ -94,7 +91,6 @@ func (ps *DefaultPositionSizer) CalculateQuantity(
 		return decimal.NewFromInt(ps.config.MinShares), nil
 	}
 
-	// Handle BUY - calculate based on portfolio
 	portfolioValue := account.PortfolioValue
 	if portfolioValue.IsZero() || portfolioValue.IsNegative() {
 		portfolioValue = account.Equity
@@ -103,11 +99,9 @@ func (ps *DefaultPositionSizer) CalculateQuantity(
 		return decimal.NewFromInt(ps.config.MinShares), nil
 	}
 
-	// Calculate max position value based on portfolio percentage
 	maxPositionPercent := decimal.NewFromFloat(ps.config.MaxPositionPercent)
 	maxPositionValue := portfolioValue.Mul(maxPositionPercent)
 
-	// Apply confidence scaling if enabled
 	if ps.config.UseConfidenceScaling {
 		// Scale between 50% and 100% of max position based on confidence
 		// Low confidence (0-50) = 50-75% of max
@@ -116,21 +110,17 @@ func (ps *DefaultPositionSizer) CalculateQuantity(
 		maxPositionValue = maxPositionValue.Mul(decimal.NewFromFloat(confidenceFactor))
 	}
 
-	// Limit by available buying power
 	if account.BuyingPower.LessThan(maxPositionValue) {
 		maxPositionValue = account.BuyingPower
 	}
 
-	// Calculate number of shares
 	shares := maxPositionValue.Div(currentPrice).Floor()
 
-	// Apply minimum
 	minShares := decimal.NewFromInt(ps.config.MinShares)
 	if shares.LessThan(minShares) {
 		shares = minShares
 	}
 
-	// Apply maximum if set
 	if ps.config.MaxShares > 0 {
 		maxShares := decimal.NewFromInt(ps.config.MaxShares)
 		if shares.GreaterThan(maxShares) {

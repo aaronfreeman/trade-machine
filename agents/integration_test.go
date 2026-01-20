@@ -76,7 +76,7 @@ func (m *integrationMockAccountProvider) GetQuote(ctx context.Context, symbol st
 
 func TestPortfolioManager_AnalyzeSymbol_Integration(t *testing.T) {
 	ctx := context.Background()
-	connString := "host=localhost port=5432 user=trademachine password=trademachine_dev dbname=trademachine sslmode=disable"
+	connString := "host=localhost port=5432 user=postgres password=postgres dbname=trademachine_test sslmode=disable"
 	repo, err := repository.NewRepository(ctx, connString)
 	if err != nil {
 		t.Skip("database not available for integration test")
@@ -198,7 +198,7 @@ func TestPortfolioManager_AnalyzeSymbol_Integration(t *testing.T) {
 
 func TestPortfolioManager_AnalyzeSymbol_PartialFailure(t *testing.T) {
 	ctx := context.Background()
-	connString := "host=localhost port=5432 user=trademachine password=trademachine_dev dbname=trademachine sslmode=disable"
+	connString := "host=localhost port=5432 user=postgres password=postgres dbname=trademachine_test sslmode=disable"
 	repo, err := repository.NewRepository(ctx, connString)
 	if err != nil {
 		t.Skip("database not available for integration test")
@@ -244,7 +244,7 @@ func TestPortfolioManager_AnalyzeSymbol_PartialFailure(t *testing.T) {
 
 func TestPortfolioManager_AnalyzeSymbol_AllFail(t *testing.T) {
 	ctx := context.Background()
-	connString := "host=localhost port=5432 user=trademachine password=trademachine_dev dbname=trademachine sslmode=disable"
+	connString := "host=localhost port=5432 user=postgres password=postgres dbname=trademachine_test sslmode=disable"
 	repo, err := repository.NewRepository(ctx, connString)
 	if err != nil {
 		t.Skip("database not available for integration test")
@@ -270,7 +270,7 @@ func TestPortfolioManager_AnalyzeSymbol_AllFail(t *testing.T) {
 
 func TestPortfolioManager_AnalyzeSymbol_UnavailableAgents(t *testing.T) {
 	ctx := context.Background()
-	connString := "host=localhost port=5432 user=trademachine password=trademachine_dev dbname=trademachine sslmode=disable"
+	connString := "host=localhost port=5432 user=postgres password=postgres dbname=trademachine_test sslmode=disable"
 	repo, err := repository.NewRepository(ctx, connString)
 	if err != nil {
 		t.Skip("database not available for integration test")
@@ -330,7 +330,7 @@ func TestPortfolioManager_AnalyzeSymbol_UnavailableAgents(t *testing.T) {
 
 func TestPortfolioManager_AnalyzeSymbol_AllUnavailable(t *testing.T) {
 	ctx := context.Background()
-	connString := "host=localhost port=5432 user=trademachine password=trademachine_dev dbname=trademachine sslmode=disable"
+	connString := "host=localhost port=5432 user=postgres password=postgres dbname=trademachine_test sslmode=disable"
 	repo, err := repository.NewRepository(ctx, connString)
 	if err != nil {
 		t.Skip("database not available for integration test")

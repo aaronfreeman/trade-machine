@@ -237,7 +237,6 @@ func (c *Config) HasFMP() bool {
 	return c.FMP.APIKey != ""
 }
 
-// getEnvString gets an environment variable with a default value
 func getEnvString(key, defaultValue string) string {
 	if val := os.Getenv(key); val != "" {
 		return val
@@ -245,7 +244,6 @@ func getEnvString(key, defaultValue string) string {
 	return defaultValue
 }
 
-// getEnvInt gets an environment variable as an integer with a default value
 func getEnvInt(key string, defaultValue int) int {
 	if val := os.Getenv(key); val != "" {
 		if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
@@ -255,7 +253,6 @@ func getEnvInt(key string, defaultValue int) int {
 	return defaultValue
 }
 
-// getEnvFloat gets an environment variable as a float with a default value (bounded 0-1)
 func getEnvFloat(key string, defaultValue float64) float64 {
 	if val := os.Getenv(key); val != "" {
 		if parsed, err := strconv.ParseFloat(val, 64); err == nil && parsed >= 0 && parsed <= 1 {
@@ -265,7 +262,6 @@ func getEnvFloat(key string, defaultValue float64) float64 {
 	return defaultValue
 }
 
-// getEnvFloatRange gets an environment variable as a float with min/max bounds
 func getEnvFloatRange(key string, defaultValue, minVal, maxVal float64) float64 {
 	if val := os.Getenv(key); val != "" {
 		if parsed, err := strconv.ParseFloat(val, 64); err == nil && parsed >= minVal && parsed <= maxVal {
@@ -275,7 +271,6 @@ func getEnvFloatRange(key string, defaultValue, minVal, maxVal float64) float64 
 	return defaultValue
 }
 
-// getEnvFloatUnbounded gets an environment variable as a float with a default value (unbounded)
 func getEnvFloatUnbounded(key string, defaultValue float64) float64 {
 	if val := os.Getenv(key); val != "" {
 		if parsed, err := strconv.ParseFloat(val, 64); err == nil {
@@ -285,7 +280,6 @@ func getEnvFloatUnbounded(key string, defaultValue float64) float64 {
 	return defaultValue
 }
 
-// getEnvBool gets an environment variable as a bool with a default value
 func getEnvBool(key string, defaultValue bool) bool {
 	if val := os.Getenv(key); val != "" {
 		if parsed, err := strconv.ParseBool(val); err == nil {

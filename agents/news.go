@@ -67,7 +67,6 @@ func NewNewsAnalystWithCacheTTL(llm LLMService, newsAPI NewsAPIServiceInterface,
 
 // Analyze performs news sentiment analysis on a stock
 func (a *NewsAnalyst) Analyze(ctx context.Context, symbol string) (*Analysis, error) {
-	// Fetch recent news
 	articles, err := a.newsAPI.GetNews(ctx, symbol, 15)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch news: %w", err)
@@ -85,7 +84,6 @@ func (a *NewsAnalyst) Analyze(ctx context.Context, symbol string) (*Analysis, er
 		}, nil
 	}
 
-	// Build user prompt with news articles
 	var sb strings.Builder
 	sb.WriteString(fmt.Sprintf("Analyze the following recent news about %s:\n\n", symbol))
 
@@ -100,13 +98,11 @@ func (a *NewsAnalyst) Analyze(ctx context.Context, symbol string) (*Analysis, er
 
 	sb.WriteString("Provide your sentiment analysis.")
 
-	// Call Claude via Bedrock
 	response, err := a.llm.InvokeWithPrompt(ctx, newsSystemPrompt, sb.String())
 	if err != nil {
 		return nil, fmt.Errorf("failed to invoke bedrock: %w", err)
 	}
 
-	// Parse response
 	var result NewsAnalystResponse
 	if err := json.Unmarshal([]byte(response), &result); err != nil {
 		return &Analysis{
@@ -151,16 +147,12 @@ func (a *NewsAnalyst) Type() models.AgentType {
 // IsAvailable checks if the agent's dependencies are healthy.
 // Results are cached to reduce API calls during frequent availability checks.
 func (a *NewsAnalyst) IsAvailable(ctx context.Context) bool {
-	// Check cache first
 	if available, valid := a.healthCache.Get(); valid {
 		return available
 	}
 
-	// Cache miss or expired - make live API call
 	_, err := a.newsAPI.GetNews(ctx, "AAPL", 1)
 	available := err == nil
-
-	// Update cache
 	a.healthCache.Set(available)
 	return available
 }

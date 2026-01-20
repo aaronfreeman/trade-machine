@@ -108,12 +108,10 @@ type agentResult struct {
 
 // AnalyzeSymbol runs all agents and generates a recommendation
 func (m *PortfolioManager) AnalyzeSymbol(ctx context.Context, symbol string) (*models.Recommendation, error) {
-	// Record analysis request metric
 	metrics := observability.GetMetrics()
 	metrics.RecordAnalysisRequest(symbol)
 	analysisTimer := metrics.NewTimer()
 
-	// Track unavailable agents
 	var unavailableAgents []models.MissingAgentInfo
 	availableAgents := make([]Agent, 0, len(m.agents))
 	for _, agent := range m.agents {
@@ -136,7 +134,6 @@ func (m *PortfolioManager) AnalyzeSymbol(ctx context.Context, symbol string) (*m
 		return nil, fmt.Errorf("no agents available to analyze %s", symbol)
 	}
 
-	// Run all available agents in parallel
 	var wg sync.WaitGroup
 	results := make([]agentResult, len(availableAgents))
 
@@ -151,7 +148,6 @@ func (m *PortfolioManager) AnalyzeSymbol(ctx context.Context, symbol string) (*m
 			run := models.NewAgentRun(ag.Type(), symbol)
 			m.repo.CreateAgentRun(agentCtx, run)
 
-			// Time the agent analysis
 			agentTimer := metrics.NewTimer()
 			analysis, err := ag.Analyze(agentCtx, symbol)
 			agentTimer.ObserveAgent(string(ag.Type()))
@@ -176,7 +172,6 @@ func (m *PortfolioManager) AnalyzeSymbol(ctx context.Context, symbol string) (*m
 
 	wg.Wait()
 
-	// Collect successful analyses and track failed agents
 	var validAnalyses []*Analysis
 	var failedAgents []models.MissingAgentInfo
 	for _, result := range results {
@@ -200,20 +195,15 @@ func (m *PortfolioManager) AnalyzeSymbol(ctx context.Context, symbol string) (*m
 		return nil, fmt.Errorf("all agents failed to analyze %s", symbol)
 	}
 
-	// Combine unavailable and failed agents
 	allMissingAgents := append(unavailableAgents, failedAgents...)
-
-	// Synthesize recommendation with missing agent info
 	rec := m.synthesizeRecommendation(ctx, symbol, validAnalyses, allMissingAgents)
 
-	// Save to database
 	if err := m.repo.CreateRecommendation(ctx, rec); err != nil {
 		analysisTimer.ObserveAnalysis(symbol, "error")
 		metrics.RecordAnalysisError(symbol, "db_save_failed")
 		return nil, fmt.Errorf("failed to save recommendation: %w", err)
 	}
 
-	// Record successful analysis and recommendation metrics
 	analysisTimer.ObserveAnalysis(symbol, "success")
 	metrics.RecordRecommendation(string(rec.Action), calculateFinalScore(rec), rec.Confidence)
 
@@ -290,7 +280,6 @@ func (m *PortfolioManager) synthesizeRecommendation(ctx context.Context, symbol 
 		models.AgentTypeTechnical:   m.cfg.Agent.WeightTechnical,
 	}
 
-	// Track which agent types provided analysis
 	providedAnalysis := make(map[models.AgentType]bool)
 
 	for _, analysis := range analyses {
@@ -311,26 +300,21 @@ func (m *PortfolioManager) synthesizeRecommendation(ctx context.Context, symbol 
 		reasonings = append(reasonings, fmt.Sprintf("[%s] %s", analysis.AgentType, analysis.Reasoning))
 	}
 
-	// Calculate final score
 	var finalScore float64
 	if totalWeight > 0 {
 		finalScore = weightedScore / totalWeight
 	}
 
-	// Calculate overall confidence
 	avgConfidence := 0.0
 	for _, analysis := range analyses {
 		avgConfidence += analysis.Confidence
 	}
 	avgConfidence /= float64(len(analyses))
 
-	// Calculate data completeness (what percentage of expected agents succeeded)
-	totalExpectedAgents := 3 // fundamental, technical, news
+	totalExpectedAgents := 3
 	dataCompleteness := float64(len(analyses)) / float64(totalExpectedAgents) * 100
 
-	// Reduce confidence when agents are missing (proportional penalty)
 	if len(missingAgents) > 0 {
-		// Reduce confidence by 15% for each missing agent, up to 45% reduction
 		confidencePenalty := float64(len(missingAgents)) * 15.0
 		if confidencePenalty > 45.0 {
 			confidencePenalty = 45.0
@@ -338,13 +322,10 @@ func (m *PortfolioManager) synthesizeRecommendation(ctx context.Context, symbol 
 		avgConfidence = avgConfidence * (1 - confidencePenalty/100)
 	}
 
-	// Determine action based on score using strategy
 	action := m.strategy.DetermineAction(finalScore, avgConfidence)
 
-	// Build combined reasoning with explicit missing agent info
 	var combinedReasoning string
 	if len(missingAgents) > 0 {
-		// Build list of missing agent types
 		var missingTypes []string
 		for _, ma := range missingAgents {
 			missingTypes = append(missingTypes, string(ma.AgentType))
@@ -360,18 +341,15 @@ func (m *PortfolioManager) synthesizeRecommendation(ctx context.Context, symbol 
 		)
 	}
 
-	// Add score summary
 	combinedReasoning += fmt.Sprintf(
 		"Scores - Fundamental: %.0f, Sentiment: %.0f, Technical: %.0f. Overall score: %.1f. ",
 		fundamentalScore, sentimentScore, technicalScore, finalScore,
 	)
 
-	// Add note about reduced confidence if applicable
 	if len(missingAgents) > 0 {
 		combinedReasoning += "Note: Confidence reduced due to incomplete data. "
 	}
 
-	// Add individual agent reasonings
 	for _, r := range reasonings {
 		combinedReasoning += r + " "
 	}
@@ -391,7 +369,6 @@ func (m *PortfolioManager) synthesizeRecommendation(ctx context.Context, symbol 
 		CreatedAt:        time.Now(),
 	}
 
-	// Calculate position size using PositionSizer
 	rec.Quantity = m.calculatePositionSize(ctx, symbol, action, avgConfidence)
 
 	return rec
@@ -411,9 +388,7 @@ func formatMissingAgents(types []string) string {
 	return types[0] + ", " + types[1] + ", and " + types[2]
 }
 
-// calculatePositionSize uses the PositionSizer to determine trade quantity
 func (m *PortfolioManager) calculatePositionSize(ctx context.Context, symbol string, action models.RecommendationAction, confidence float64) decimal.Decimal {
-	// Get account information
 	account, err := m.accountProvider.GetAccount(ctx)
 	if err != nil {
 		observability.Warn("failed to get account for position sizing, using minimum",
@@ -422,7 +397,6 @@ func (m *PortfolioManager) calculatePositionSize(ctx context.Context, symbol str
 		return decimal.NewFromInt(m.cfg.PositionSizing.MinShares)
 	}
 
-	// Get current price
 	quote, err := m.accountProvider.GetQuote(ctx, symbol)
 	if err != nil {
 		observability.Warn("failed to get quote for position sizing, using minimum",
@@ -439,10 +413,7 @@ func (m *PortfolioManager) calculatePositionSize(ctx context.Context, symbol str
 		}
 	}
 
-	// Get existing position (may be nil)
 	existingPosition, _ := m.accountProvider.GetPosition(ctx, symbol)
-
-	// Calculate quantity using position sizer
 	quantity, err := m.positionSizer.CalculateQuantity(ctx, account, currentPrice, action, confidence, existingPosition)
 	if err != nil {
 		observability.Warn("position sizer error, using minimum",

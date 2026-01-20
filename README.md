@@ -131,8 +131,8 @@ just docker-up
 The database will be initialized with credentials:
 - Host: `localhost`
 - Port: `5432`
-- User: `trademachine`
-- Password: `trademachine_dev`
+- User: `postgres`
+- Password: `postgres`
 - Database: `trademachine`
 
 Wait for the output confirming PostgreSQL is ready.
@@ -165,7 +165,7 @@ AWS_SECRET_ACCESS_KEY=your_aws_secret_key
 BEDROCK_MODEL_ID=anthropic.claude-3-5-sonnet-20241022-v2:0
 
 # PostgreSQL Configuration (use defaults or customize)
-DATABASE_URL=postgres://trademachine:trademachine_dev@localhost:5432/trademachine?sslmode=disable
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/trademachine?sslmode=disable
 
 # Alpaca API Configuration (for paper trading)
 ALPACA_API_KEY=your_alpaca_key
@@ -282,7 +282,7 @@ just test
 For integration tests that require a database:
 
 ```bash
-DATABASE_URL=postgres://trademachine:trademachine_dev@localhost:5432/trademachine?sslmode=disable just test
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/trademachine?sslmode=disable just test
 ```
 
 ### Building for Production
@@ -312,7 +312,7 @@ just test
 Some tests require a running PostgreSQL database. Set the database URL environment variable:
 
 ```bash
-DATABASE_URL=postgres://trademachine:trademachine_dev@localhost:5432/trademachine?sslmode=disable just test
+DATABASE_URL=postgres://postgres:postgres@localhost:5432/trademachine?sslmode=disable just test
 ```
 
 ## Troubleshooting

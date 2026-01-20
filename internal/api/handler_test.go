@@ -10,6 +10,7 @@ import (
 
 	"trade-machine/config"
 	"trade-machine/internal/app"
+	"trade-machine/internal/settings"
 	"trade-machine/repository"
 )
 
@@ -21,6 +22,19 @@ func testConfig() *config.Config {
 // testApp creates an App with test config for testing
 func testApp(repo app.RepositoryInterface) *app.App {
 	return app.New(testConfig(), repo, nil, nil)
+}
+
+// testAppWithSettings creates an App with test config and settings store
+func testAppWithSettings(t *testing.T) *app.App {
+	t.Helper()
+	tmpDir := t.TempDir()
+	store, err := settings.NewStore(tmpDir, "test-passphrase")
+	if err != nil {
+		t.Fatalf("failed to create settings store: %v", err)
+	}
+	a := app.New(testConfig(), nil, nil, nil)
+	a.SetSettings(store)
+	return a
 }
 
 // testHandler creates a Handler with test config for testing
@@ -179,7 +193,7 @@ func TestHandler_GetRecommendations(t *testing.T) {
 func TestHandler_ApproveRecommendation(t *testing.T) {
 	t.Run("invalid UUID", func(t *testing.T) {
 		ctx := context.Background()
-		connString := "host=localhost port=5432 user=trademachine password=trademachine_dev dbname=trademachine sslmode=disable"
+		connString := "host=localhost port=5432 user=postgres password=postgres dbname=trademachine_test sslmode=disable"
 		repo, err := repository.NewRepository(ctx, connString)
 		if err != nil {
 			t.Skip("database not available")
@@ -449,7 +463,7 @@ func TestHandler_GetPortfolio(t *testing.T) {
 // Integration tests with database
 func TestIntegration_WithDatabase(t *testing.T) {
 	ctx := context.Background()
-	connString := "postgres://trademachine:trademachine_dev@localhost:5432/trademachine?sslmode=disable"
+	connString := "postgres://postgres:postgres@localhost:5432/trademachine_test?sslmode=disable"
 	repo, err := repository.NewRepository(ctx, connString)
 	if err != nil {
 		t.Skip("database not available")
@@ -633,7 +647,7 @@ func TestHandler_OptionsRequest(t *testing.T) {
 
 func TestHandler_GetRecommendations_WithStatus(t *testing.T) {
 	ctx := context.Background()
-	connString := "postgres://trademachine:trademachine_dev@localhost:5432/trademachine?sslmode=disable"
+	connString := "postgres://postgres:postgres@localhost:5432/trademachine_test?sslmode=disable"
 	repo, err := repository.NewRepository(ctx, connString)
 	if err != nil {
 		t.Skip("database not available")
@@ -671,7 +685,7 @@ func TestHandler_AnalyzeStock_InvalidJSON(t *testing.T) {
 
 func TestHandler_GetAgentRuns_WithType(t *testing.T) {
 	ctx := context.Background()
-	connString := "postgres://trademachine:trademachine_dev@localhost:5432/trademachine?sslmode=disable"
+	connString := "postgres://postgres:postgres@localhost:5432/trademachine_test?sslmode=disable"
 	repo, err := repository.NewRepository(ctx, connString)
 	if err != nil {
 		t.Skip("database not available")
@@ -782,6 +796,139 @@ func TestHandler_GetTopPicks(t *testing.T) {
 
 		if w.Code != http.StatusServiceUnavailable {
 			t.Errorf("expected status 503, got %d", w.Code)
+		}
+	})
+}
+
+func TestHandler_UpdateAPIKey(t *testing.T) {
+	t.Run("settings not available", func(t *testing.T) {
+		a := testApp(nil)
+		router := testRouter(a)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/settings/api-keys",
+			strings.NewReader("service_name=fmp&api_key=test123"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusServiceUnavailable {
+			t.Errorf("expected status 503, got %d", w.Code)
+		}
+	})
+
+	t.Run("missing service name in form data", func(t *testing.T) {
+		a := testAppWithSettings(t)
+		router := testRouter(a)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/settings/api-keys",
+			strings.NewReader("api_key=test123"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("missing service name in JSON", func(t *testing.T) {
+		a := testAppWithSettings(t)
+		router := testRouter(a)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/settings/api-keys",
+			strings.NewReader(`{"api_key":"test123"}`))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("invalid JSON", func(t *testing.T) {
+		a := testAppWithSettings(t)
+		router := testRouter(a)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/settings/api-keys",
+			strings.NewReader(`{invalid json`))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", w.Code)
+		}
+	})
+
+	t.Run("valid form data saves API key", func(t *testing.T) {
+		a := testAppWithSettings(t)
+		router := testRouter(a)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/settings/api-keys",
+			strings.NewReader("service_name=fmp&api_key=test123"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status 200, got %d", w.Code)
+		}
+	})
+
+	t.Run("valid JSON saves API key", func(t *testing.T) {
+		a := testAppWithSettings(t)
+		router := testRouter(a)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/settings/api-keys",
+			strings.NewReader(`{"service_name":"fmp","api_key":"test456"}`))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusOK {
+			t.Errorf("expected status 200, got %d", w.Code)
+		}
+	})
+}
+
+func TestHandler_AnalyzeStock_FormData(t *testing.T) {
+	t.Run("form data with symbol", func(t *testing.T) {
+		a := testApp(nil)
+		router := testRouter(a)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/analyze",
+			strings.NewReader("symbol=AAPL"))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		// Should fail with 500 because portfolio manager not initialized, not 400
+		if w.Code != http.StatusInternalServerError {
+			t.Errorf("expected status 500, got %d", w.Code)
+		}
+	})
+
+	t.Run("form data without symbol", func(t *testing.T) {
+		a := testApp(nil)
+		router := testRouter(a)
+
+		req := httptest.NewRequest(http.MethodPost, "/api/analyze",
+			strings.NewReader(""))
+		req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		w := httptest.NewRecorder()
+
+		router.ServeHTTP(w, req)
+
+		if w.Code != http.StatusBadRequest {
+			t.Errorf("expected status 400, got %d", w.Code)
 		}
 	})
 }

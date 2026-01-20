@@ -12,6 +12,9 @@ import (
 
 // GetTrades returns trades with optional limit
 func (r *Repository) GetTrades(ctx context.Context, limit int) ([]models.Trade, error) {
+	if err := r.checkDB(); err != nil {
+		return nil, err
+	}
 	if limit <= 0 {
 		limit = 50
 	}
@@ -42,6 +45,9 @@ func (r *Repository) GetTrades(ctx context.Context, limit int) ([]models.Trade, 
 
 // GetTrade returns a single trade by ID
 func (r *Repository) GetTrade(ctx context.Context, id uuid.UUID) (*models.Trade, error) {
+	if err := r.checkDB(); err != nil {
+		return nil, err
+	}
 	var t models.Trade
 	err := r.db.QueryRow(ctx, `
 		SELECT id, symbol, side, quantity, price, total_value, commission, status, alpaca_order_id, executed_at, created_at
@@ -60,6 +66,9 @@ func (r *Repository) GetTrade(ctx context.Context, id uuid.UUID) (*models.Trade,
 
 // CreateTrade creates a new trade record
 func (r *Repository) CreateTrade(ctx context.Context, trade *models.Trade) error {
+	if err := r.checkDB(); err != nil {
+		return err
+	}
 	_, err := r.db.Exec(ctx, `
 		INSERT INTO trades (id, symbol, side, quantity, price, total_value, commission, status, alpaca_order_id, executed_at, created_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
@@ -74,6 +83,9 @@ func (r *Repository) CreateTrade(ctx context.Context, trade *models.Trade) error
 
 // UpdateTradeStatus updates the status of a trade
 func (r *Repository) UpdateTradeStatus(ctx context.Context, id uuid.UUID, status models.TradeStatus) error {
+	if err := r.checkDB(); err != nil {
+		return err
+	}
 	_, err := r.db.Exec(ctx, `UPDATE trades SET status = $2 WHERE id = $1`, id, status)
 	if err != nil {
 		return fmt.Errorf("failed to update trade status: %w", err)
@@ -83,6 +95,9 @@ func (r *Repository) UpdateTradeStatus(ctx context.Context, id uuid.UUID, status
 
 // GetTradesBySymbol returns trades for a specific symbol
 func (r *Repository) GetTradesBySymbol(ctx context.Context, symbol string, limit int) ([]models.Trade, error) {
+	if err := r.checkDB(); err != nil {
+		return nil, err
+	}
 	if limit <= 0 {
 		limit = 50
 	}

@@ -72,6 +72,11 @@ func NewRouter(h *Handler, cfg *config.Config) http.Handler {
 			r.Post("/api-keys/{service}/test", h.HandleTestAPIKey)
 			r.Delete("/api-keys/{service}", h.HandleDeleteAPIKey)
 		})
+
+		// E2E testing endpoints (only available in test mode)
+		r.Route("/e2e", func(r chi.Router) {
+			r.Post("/reset-settings", h.HandleResetSettings)
+		})
 	})
 
 	return r

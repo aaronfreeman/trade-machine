@@ -105,13 +105,47 @@ e2e-up:
 e2e-down:
 	docker-compose -f e2e/docker-compose.test.yml down -v
 
-# Run E2E tests (requires e2e-up first)
-e2e-test:
-	templ generate
-	E2E_DATABASE_URL="postgres://trademachine_test:test_password@localhost:5433/trademachine_test?sslmode=disable" go test -v -tags=e2e -count=1 ./e2e/...
+# E2E database URL for Playwright tests
+e2e_db_url := "postgres://trademachine_test:test_password@localhost:5433/trademachine_test?sslmode=disable"
 
-# Run all E2E tests with setup/teardown
-e2e: e2e-up
+# Install Playwright dependencies
+playwright-install:
+	cd e2e/playwright && npm install
+	cd e2e/playwright && npx playwright install chromium
+
+# Run Playwright E2E tests (browser-based)
+playwright-test: e2e-up
 	templ generate
-	E2E_DATABASE_URL="postgres://trademachine_test:test_password@localhost:5433/trademachine_test?sslmode=disable" go test -v -tags=e2e -count=1 ./e2e/... || (just e2e-down && exit 1)
+	cd e2e/playwright && E2E_DATABASE_URL="{{e2e_db_url}}" npm test || (just e2e-down && exit 1)
 	just e2e-down
+
+# Run Playwright tests in headed mode (visible browser)
+playwright-headed: e2e-up
+	templ generate
+	cd e2e/playwright && E2E_DATABASE_URL="{{e2e_db_url}}" npm run test:headed || (just e2e-down && exit 1)
+	just e2e-down
+
+# Run Playwright tests with debug UI
+playwright-debug: e2e-up
+	templ generate
+	cd e2e/playwright && E2E_DATABASE_URL="{{e2e_db_url}}" npm run test:debug
+
+# Run Playwright tests with interactive UI
+playwright-ui: e2e-up
+	templ generate
+	cd e2e/playwright && E2E_DATABASE_URL="{{e2e_db_url}}" npm run test:ui
+
+# Show Playwright test report
+playwright-report:
+	cd e2e/playwright && npm run report
+
+# Start the E2E test server manually (for development)
+e2e-server: e2e-up
+	templ generate
+	E2E_DATABASE_URL="{{e2e_db_url}}" go run ./cmd/e2e-server
+
+# Alias for playwright-test (shorter to type)
+pw: playwright-test
+
+# Run all tests (unit tests + Playwright E2E tests)
+test-all: test playwright-test

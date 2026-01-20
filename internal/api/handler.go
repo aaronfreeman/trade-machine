@@ -618,8 +618,28 @@ func (h *Handler) HandleUpdateAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var req settings.APIKeyConfig
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		// Try form values
+
+	// Check Content-Type to determine how to parse the request
+	contentType := r.Header.Get("Content-Type")
+	if strings.HasPrefix(contentType, "application/json") {
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			if isHTMXRequest(r) {
+				h.htmlError(w, "Invalid JSON request", r)
+				return
+			}
+			h.jsonError(w, "Invalid JSON request", http.StatusBadRequest)
+			return
+		}
+	} else {
+		// Parse as form data (default for HTMX forms)
+		if err := r.ParseForm(); err != nil {
+			if isHTMXRequest(r) {
+				h.htmlError(w, "Invalid form data", r)
+				return
+			}
+			h.jsonError(w, "Invalid form data", http.StatusBadRequest)
+			return
+		}
 		req.ServiceName = settings.ServiceName(r.FormValue("service_name"))
 		req.APIKey = r.FormValue("api_key")
 		req.APISecret = r.FormValue("api_secret")
@@ -748,6 +768,22 @@ func (h *Handler) HandleDeleteAPIKey(w http.ResponseWriter, r *http.Request) {
 	}
 
 	h.jsonResponse(w, map[string]string{"status": "deleted", "service": service})
+}
+
+// HandleResetSettings removes all API key configurations (for E2E testing)
+func (h *Handler) HandleResetSettings(w http.ResponseWriter, r *http.Request) {
+	settingsStore := h.app.Settings()
+	if settingsStore == nil {
+		h.jsonError(w, "Settings not available", http.StatusServiceUnavailable)
+		return
+	}
+
+	if err := settingsStore.ResetAll(); err != nil {
+		h.jsonError(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	h.jsonResponse(w, map[string]string{"status": "reset"})
 }
 
 // HandleSettingsPage renders the settings page

@@ -13,6 +13,9 @@ import (
 
 // CreateAgentRun creates a new agent run record
 func (r *Repository) CreateAgentRun(ctx context.Context, run *models.AgentRun) error {
+	if err := r.checkDB(); err != nil {
+		return err
+	}
 	inputData, _ := json.Marshal(run.InputData)
 
 	_, err := r.db.Exec(ctx, `
@@ -29,6 +32,9 @@ func (r *Repository) CreateAgentRun(ctx context.Context, run *models.AgentRun) e
 
 // UpdateAgentRun updates an existing agent run
 func (r *Repository) UpdateAgentRun(ctx context.Context, run *models.AgentRun) error {
+	if err := r.checkDB(); err != nil {
+		return err
+	}
 	outputData, _ := json.Marshal(run.OutputData)
 
 	_, err := r.db.Exec(ctx, `
@@ -46,6 +52,9 @@ func (r *Repository) UpdateAgentRun(ctx context.Context, run *models.AgentRun) e
 
 // GetAgentRun returns a single agent run by ID
 func (r *Repository) GetAgentRun(ctx context.Context, id uuid.UUID) (*models.AgentRun, error) {
+	if err := r.checkDB(); err != nil {
+		return nil, err
+	}
 	var run models.AgentRun
 	var inputData, outputData []byte
 	var errorMessage *string
@@ -81,6 +90,9 @@ func (r *Repository) GetAgentRun(ctx context.Context, id uuid.UUID) (*models.Age
 
 // GetAgentRuns returns agent runs with optional filtering by agent type
 func (r *Repository) GetAgentRuns(ctx context.Context, agentType models.AgentType, limit int) ([]models.AgentRun, error) {
+	if err := r.checkDB(); err != nil {
+		return nil, err
+	}
 	if limit <= 0 {
 		limit = 50
 	}
@@ -143,6 +155,9 @@ func (r *Repository) GetAgentRuns(ctx context.Context, agentType models.AgentTyp
 
 // GetRecentRunsForSymbol returns recent agent runs for a specific symbol
 func (r *Repository) GetRecentRunsForSymbol(ctx context.Context, symbol string, limit int) ([]models.AgentRun, error) {
+	if err := r.checkDB(); err != nil {
+		return nil, err
+	}
 	if limit <= 0 {
 		limit = 10
 	}

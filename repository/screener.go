@@ -14,6 +14,9 @@ import (
 
 // CreateScreenerRun creates a new screener run
 func (r *Repository) CreateScreenerRun(ctx context.Context, run *models.ScreenerRun) error {
+	if err := r.checkDB(); err != nil {
+		return err
+	}
 	metrics := observability.GetMetrics()
 	timer := metrics.NewTimer()
 	defer timer.ObserveDB("insert", "screener_runs")
@@ -43,6 +46,9 @@ func (r *Repository) CreateScreenerRun(ctx context.Context, run *models.Screener
 
 // UpdateScreenerRun updates an existing screener run
 func (r *Repository) UpdateScreenerRun(ctx context.Context, run *models.ScreenerRun) error {
+	if err := r.checkDB(); err != nil {
+		return err
+	}
 	metrics := observability.GetMetrics()
 	timer := metrics.NewTimer()
 	defer timer.ObserveDB("update", "screener_runs")
@@ -68,6 +74,9 @@ func (r *Repository) UpdateScreenerRun(ctx context.Context, run *models.Screener
 
 // GetScreenerRun returns a screener run by ID
 func (r *Repository) GetScreenerRun(ctx context.Context, id uuid.UUID) (*models.ScreenerRun, error) {
+	if err := r.checkDB(); err != nil {
+		return nil, err
+	}
 	metrics := observability.GetMetrics()
 	timer := metrics.NewTimer()
 	defer timer.ObserveDB("select", "screener_runs")
@@ -102,6 +111,9 @@ func (r *Repository) GetScreenerRun(ctx context.Context, id uuid.UUID) (*models.
 
 // GetLatestScreenerRun returns the most recent screener run
 func (r *Repository) GetLatestScreenerRun(ctx context.Context) (*models.ScreenerRun, error) {
+	if err := r.checkDB(); err != nil {
+		return nil, err
+	}
 	metrics := observability.GetMetrics()
 	timer := metrics.NewTimer()
 	defer timer.ObserveDB("select", "screener_runs")
@@ -137,6 +149,9 @@ func (r *Repository) GetLatestScreenerRun(ctx context.Context) (*models.Screener
 
 // GetScreenerRunHistory returns a list of recent screener runs (summary only)
 func (r *Repository) GetScreenerRunHistory(ctx context.Context, limit int) ([]models.ScreenerRun, error) {
+	if err := r.checkDB(); err != nil {
+		return nil, err
+	}
 	metrics := observability.GetMetrics()
 	timer := metrics.NewTimer()
 	defer timer.ObserveDB("select", "screener_runs")

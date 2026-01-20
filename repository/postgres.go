@@ -2,12 +2,17 @@ package repository
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
+
+// ErrNoDatabaseConnection is returned when a database operation is attempted
+// but the repository has no active database connection.
+var ErrNoDatabaseConnection = errors.New("no database connection available")
 
 // DBTX is an interface that both pgxpool.Pool and pgx.Tx satisfy.
 // This allows Repository methods to work with either a connection pool
@@ -48,6 +53,9 @@ func (r *Repository) WithTx(tx pgx.Tx) *Repository {
 // BeginTx starts a new transaction and returns a Repository that uses it.
 // The caller is responsible for calling Commit() or Rollback() on the transaction.
 func (r *Repository) BeginTx(ctx context.Context) (pgx.Tx, *Repository, error) {
+	if r.pool == nil {
+		return nil, nil, ErrNoDatabaseConnection
+	}
 	tx, err := r.pool.Begin(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to begin transaction: %w", err)
@@ -64,6 +72,9 @@ func (r *Repository) Close() {
 
 // Health checks if the database connection is healthy
 func (r *Repository) Health(ctx context.Context) error {
+	if r.pool == nil {
+		return ErrNoDatabaseConnection
+	}
 	return r.pool.Ping(ctx)
 }
 
@@ -71,4 +82,12 @@ func (r *Repository) Health(ctx context.Context) error {
 // This is primarily intended for testing and cleanup operations.
 func (r *Repository) Pool() *pgxpool.Pool {
 	return r.pool
+}
+
+// checkDB returns an error if the database connection is not available.
+func (r *Repository) checkDB() error {
+	if r.db == nil {
+		return ErrNoDatabaseConnection
+	}
+	return nil
 }

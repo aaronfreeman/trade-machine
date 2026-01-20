@@ -247,6 +247,15 @@ func (s *Store) GetAllAPIKeys() map[ServiceName]*APIKeyConfig {
 	return result
 }
 
+// ResetAll removes all API keys (for testing purposes)
+func (s *Store) ResetAll() error {
+	s.mu.Lock()
+	s.settings.APIKeys = make(map[ServiceName]*APIKeyConfig)
+	s.mu.Unlock()
+
+	return s.Save()
+}
+
 // ServiceDisplayName returns a human-readable name for a service
 func ServiceDisplayName(service ServiceName) string {
 	switch service {

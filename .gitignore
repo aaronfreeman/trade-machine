@@ -5,6 +5,8 @@ dist/
 # Generated files
 *_templ.go
 frontend/dist/wailsjs/
+e2e/playwright/playwright-report/*
+e2e/playwright/test-results/*
 
 # Go
 *.exe
@@ -17,6 +19,7 @@ frontend/dist/wailsjs/
 
 # Dependencies
 vendor/
+**/node_modules/
 
 # IDE
 .idea/

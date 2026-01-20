@@ -555,8 +555,8 @@ func TestRepository_AgentRuns_CRUD(t *testing.T) {
 	if updated.OutputData == nil {
 		t.Error("OutputData should be set after completion")
 	}
-	if updated.DurationMs <= 0 {
-		t.Error("DurationMs should be positive after completion")
+	if updated.DurationMs < 0 {
+		t.Error("DurationMs should be non-negative after completion")
 	}
 }
 

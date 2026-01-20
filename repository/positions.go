@@ -12,6 +12,9 @@ import (
 
 // GetPositions returns all positions
 func (r *Repository) GetPositions(ctx context.Context) ([]models.Position, error) {
+	if err := r.checkDB(); err != nil {
+		return nil, err
+	}
 	rows, err := r.db.Query(ctx, `
 		SELECT id, symbol, quantity, avg_entry_price, current_price, unrealized_pl, side, created_at, updated_at
 		FROM positions
@@ -37,6 +40,9 @@ func (r *Repository) GetPositions(ctx context.Context) ([]models.Position, error
 
 // GetPosition returns a single position by ID
 func (r *Repository) GetPosition(ctx context.Context, id uuid.UUID) (*models.Position, error) {
+	if err := r.checkDB(); err != nil {
+		return nil, err
+	}
 	var p models.Position
 	err := r.db.QueryRow(ctx, `
 		SELECT id, symbol, quantity, avg_entry_price, current_price, unrealized_pl, side, created_at, updated_at
@@ -55,6 +61,9 @@ func (r *Repository) GetPosition(ctx context.Context, id uuid.UUID) (*models.Pos
 
 // GetPositionBySymbol returns a position by symbol
 func (r *Repository) GetPositionBySymbol(ctx context.Context, symbol string) (*models.Position, error) {
+	if err := r.checkDB(); err != nil {
+		return nil, err
+	}
 	var p models.Position
 	err := r.db.QueryRow(ctx, `
 		SELECT id, symbol, quantity, avg_entry_price, current_price, unrealized_pl, side, created_at, updated_at
@@ -73,6 +82,9 @@ func (r *Repository) GetPositionBySymbol(ctx context.Context, symbol string) (*m
 
 // CreatePosition creates a new position
 func (r *Repository) CreatePosition(ctx context.Context, pos *models.Position) error {
+	if err := r.checkDB(); err != nil {
+		return err
+	}
 	_, err := r.db.Exec(ctx, `
 		INSERT INTO positions (id, symbol, quantity, avg_entry_price, current_price, unrealized_pl, side, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
@@ -87,6 +99,9 @@ func (r *Repository) CreatePosition(ctx context.Context, pos *models.Position) e
 
 // UpdatePosition updates an existing position
 func (r *Repository) UpdatePosition(ctx context.Context, pos *models.Position) error {
+	if err := r.checkDB(); err != nil {
+		return err
+	}
 	_, err := r.db.Exec(ctx, `
 		UPDATE positions 
 		SET quantity = $2, avg_entry_price = $3, current_price = $4, unrealized_pl = $5, side = $6, updated_at = NOW()
@@ -102,6 +117,9 @@ func (r *Repository) UpdatePosition(ctx context.Context, pos *models.Position) e
 
 // DeletePosition removes a position
 func (r *Repository) DeletePosition(ctx context.Context, id uuid.UUID) error {
+	if err := r.checkDB(); err != nil {
+		return err
+	}
 	_, err := r.db.Exec(ctx, `DELETE FROM positions WHERE id = $1`, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete position: %w", err)

@@ -15,6 +15,9 @@ import (
 
 // GetRecommendations returns recommendations filtered by status
 func (r *Repository) GetRecommendations(ctx context.Context, status models.RecommendationStatus, limit int) ([]models.Recommendation, error) {
+	if err := r.checkDB(); err != nil {
+		return nil, err
+	}
 	metrics := observability.GetMetrics()
 	timer := metrics.NewTimer()
 	defer timer.ObserveDB("select", "recommendations")
@@ -102,6 +105,9 @@ func scanRecommendation(row pgx.Row) (*models.Recommendation, error) {
 
 // GetRecommendation returns a single recommendation by ID
 func (r *Repository) GetRecommendation(ctx context.Context, id uuid.UUID) (*models.Recommendation, error) {
+	if err := r.checkDB(); err != nil {
+		return nil, err
+	}
 	row := r.db.QueryRow(ctx, `
 		SELECT id, symbol, action, quantity, target_price, confidence, reasoning,
 			   fundamental_score, sentiment_score, technical_score,
@@ -123,6 +129,9 @@ func (r *Repository) GetRecommendation(ctx context.Context, id uuid.UUID) (*mode
 
 // CreateRecommendation creates a new recommendation
 func (r *Repository) CreateRecommendation(ctx context.Context, rec *models.Recommendation) error {
+	if err := r.checkDB(); err != nil {
+		return err
+	}
 	metrics := observability.GetMetrics()
 	timer := metrics.NewTimer()
 	defer timer.ObserveDB("insert", "recommendations")
@@ -151,6 +160,9 @@ func (r *Repository) CreateRecommendation(ctx context.Context, rec *models.Recom
 
 // ApproveRecommendation marks a recommendation as approved
 func (r *Repository) ApproveRecommendation(ctx context.Context, id uuid.UUID) error {
+	if err := r.checkDB(); err != nil {
+		return err
+	}
 	_, err := r.db.Exec(ctx, `
 		UPDATE recommendations 
 		SET status = $2, approved_at = $3 
@@ -166,6 +178,9 @@ func (r *Repository) ApproveRecommendation(ctx context.Context, id uuid.UUID) er
 
 // RejectRecommendation marks a recommendation as rejected
 func (r *Repository) RejectRecommendation(ctx context.Context, id uuid.UUID) error {
+	if err := r.checkDB(); err != nil {
+		return err
+	}
 	_, err := r.db.Exec(ctx, `
 		UPDATE recommendations 
 		SET status = $2, rejected_at = $3 
@@ -181,6 +196,9 @@ func (r *Repository) RejectRecommendation(ctx context.Context, id uuid.UUID) err
 
 // ExecuteRecommendation marks a recommendation as executed with the trade ID
 func (r *Repository) ExecuteRecommendation(ctx context.Context, id uuid.UUID, tradeID uuid.UUID) error {
+	if err := r.checkDB(); err != nil {
+		return err
+	}
 	_, err := r.db.Exec(ctx, `
 		UPDATE recommendations 
 		SET status = $2, executed_trade_id = $3 

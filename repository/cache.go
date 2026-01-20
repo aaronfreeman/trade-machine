@@ -11,6 +11,9 @@ import (
 
 // GetCachedData retrieves cached data for a symbol and data type
 func (r *Repository) GetCachedData(ctx context.Context, symbol, dataType string) (map[string]interface{}, error) {
+	if err := r.checkDB(); err != nil {
+		return nil, err
+	}
 	var data []byte
 
 	// Use clock_timestamp() for real wall-clock time comparison
@@ -37,6 +40,9 @@ func (r *Repository) GetCachedData(ctx context.Context, symbol, dataType string)
 
 // SetCachedData stores data in the cache with a TTL
 func (r *Repository) SetCachedData(ctx context.Context, symbol, dataType string, data map[string]interface{}, ttl time.Duration) error {
+	if err := r.checkDB(); err != nil {
+		return err
+	}
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return fmt.Errorf("failed to marshal cache data: %w", err)
@@ -58,6 +64,9 @@ func (r *Repository) SetCachedData(ctx context.Context, symbol, dataType string,
 
 // InvalidateCache removes cached data for a symbol and data type
 func (r *Repository) InvalidateCache(ctx context.Context, symbol, dataType string) error {
+	if err := r.checkDB(); err != nil {
+		return err
+	}
 	_, err := r.db.Exec(ctx, `
 		DELETE FROM market_data_cache WHERE symbol = $1 AND data_type = $2
 	`, symbol, dataType)
@@ -71,6 +80,9 @@ func (r *Repository) InvalidateCache(ctx context.Context, symbol, dataType strin
 
 // InvalidateAllCacheForSymbol removes all cached data for a symbol
 func (r *Repository) InvalidateAllCacheForSymbol(ctx context.Context, symbol string) error {
+	if err := r.checkDB(); err != nil {
+		return err
+	}
 	_, err := r.db.Exec(ctx, `DELETE FROM market_data_cache WHERE symbol = $1`, symbol)
 	if err != nil {
 		return fmt.Errorf("failed to invalidate cache: %w", err)
@@ -80,6 +92,9 @@ func (r *Repository) InvalidateAllCacheForSymbol(ctx context.Context, symbol str
 
 // CleanExpiredCache removes all expired cache entries
 func (r *Repository) CleanExpiredCache(ctx context.Context) (int64, error) {
+	if err := r.checkDB(); err != nil {
+		return 0, err
+	}
 	result, err := r.db.Exec(ctx, `DELETE FROM market_data_cache WHERE expires_at < clock_timestamp()`)
 	if err != nil {
 		return 0, fmt.Errorf("failed to clean expired cache: %w", err)

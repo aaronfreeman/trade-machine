@@ -69,6 +69,8 @@ export default defineConfig({
     env: {
       E2E_DATABASE_URL: process.env.E2E_DATABASE_URL || 'postgres://trademachine_test:test_password@localhost:5433/trademachine_test?sslmode=disable',
       E2E_SERVER_PORT: '9090',
+      // Enable mock services (FMP, Alpaca, PortfolioManager) for screener testing
+      E2E_ENABLE_MOCKS: process.env.E2E_ENABLE_MOCKS || 'true',
     },
   },
 });

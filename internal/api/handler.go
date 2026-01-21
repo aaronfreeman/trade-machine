@@ -14,6 +14,7 @@ import (
 	"trade-machine/internal/app"
 	"trade-machine/internal/settings"
 	"trade-machine/models"
+	"trade-machine/observability"
 	"trade-machine/services"
 	"trade-machine/templates"
 	"trade-machine/templates/components"
@@ -395,7 +396,8 @@ type AnalyzeRequest struct {
 func (h *Handler) HandleRunScreener(w http.ResponseWriter, r *http.Request) {
 	if h.app.Screener() == nil {
 		if isHTMXRequest(r) {
-			h.htmlResponse(w, partials.ScreenerNotConfigured(), r)
+			status := h.app.ScreenerStatus()
+			h.htmlResponse(w, partials.ScreenerNotConfigured(status.MissingServices), r)
 			return
 		}
 		h.jsonError(w, "Screener not configured", http.StatusServiceUnavailable)
@@ -542,7 +544,8 @@ func (h *Handler) HandleGetScreenerRun(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) HandleGetTopPicks(w http.ResponseWriter, r *http.Request) {
 	if h.app.Screener() == nil {
 		if isHTMXRequest(r) {
-			h.htmlResponse(w, partials.ScreenerNotConfigured(), r)
+			status := h.app.ScreenerStatus()
+			h.htmlResponse(w, partials.ScreenerNotConfigured(status.MissingServices), r)
 			return
 		}
 		h.jsonError(w, "Screener not configured", http.StatusServiceUnavailable)
@@ -695,6 +698,13 @@ func (h *Handler) HandleUpdateAPIKey(w http.ResponseWriter, r *http.Request) {
 		}
 		h.jsonError(w, err.Error(), http.StatusInternalServerError)
 		return
+	}
+
+	// If FMP API key was updated, reinitialize the screener
+	if req.ServiceName == settings.ServiceFMP && req.APIKey != "" {
+		if err := h.app.InitializeScreenerWithFMPKey(req.APIKey); err != nil {
+			observability.Warn("failed to reinitialize screener with new FMP key", "error", err)
+		}
 	}
 
 	if isHTMXRequest(r) {

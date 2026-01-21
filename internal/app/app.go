@@ -7,6 +7,7 @@ import (
 	"trade-machine/config"
 	"trade-machine/internal/settings"
 	"trade-machine/models"
+	"trade-machine/observability"
 	"trade-machine/services"
 
 	"github.com/google/uuid"
@@ -40,6 +41,19 @@ type ScreenerInterface interface {
 	GetRun(ctx context.Context, id uuid.UUID) (*models.ScreenerRun, error)
 }
 
+// ScreenerRepositoryInterface defines the repository operations needed for screener initialization
+type ScreenerRepositoryInterface interface {
+	CreateScreenerRun(ctx context.Context, run *models.ScreenerRun) error
+	UpdateScreenerRun(ctx context.Context, run *models.ScreenerRun) error
+	GetScreenerRun(ctx context.Context, id uuid.UUID) (*models.ScreenerRun, error)
+	GetLatestScreenerRun(ctx context.Context) (*models.ScreenerRun, error)
+	GetScreenerRunHistory(ctx context.Context, limit int) ([]models.ScreenerRun, error)
+	CreateRecommendation(ctx context.Context, rec *models.Recommendation) error
+}
+
+// ScreenerFactory creates a new screener instance with the given FMP service
+type ScreenerFactory func(fmpService services.FMPServiceInterface, analysisProvider PortfolioManagerInterface, repo ScreenerRepositoryInterface, cfg *config.ScreenerConfig) ScreenerInterface
+
 // App struct holds application dependencies using interfaces for testability
 type App struct {
 	ctx              context.Context
@@ -50,6 +64,11 @@ type App struct {
 	alpacaService    services.AlpacaServiceInterface
 	settings         *settings.Store
 	analysisSem      chan struct{}
+	// For dynamic screener initialization when FMP key is updated
+	screenerRepo    ScreenerRepositoryInterface
+	screenerFactory ScreenerFactory
+	// useMockServices prevents dynamic service reinitialization (for e2e testing)
+	useMockServices bool
 }
 
 // New creates a new App application struct
@@ -88,6 +107,77 @@ func (a *App) SetScreener(s ScreenerInterface) {
 // Screener returns the screener interface
 func (a *App) Screener() ScreenerInterface {
 	return a.screener
+}
+
+// ScreenerStatus returns information about what's needed to enable the screener
+func (a *App) ScreenerStatus() ScreenerStatus {
+	status := ScreenerStatus{
+		Available:        a.screener != nil,
+		HasFMPKey:        a.screener != nil || a.screenerFactory != nil, // If factory is set, FMP can be configured dynamically
+		HasPortfolio:     a.portfolioManager != nil,
+		HasDatabase:      a.repo != nil,
+		MissingServices:  []string{},
+	}
+
+	if !status.HasDatabase {
+		status.MissingServices = append(status.MissingServices, "Database")
+	}
+	if !status.HasPortfolio {
+		status.MissingServices = append(status.MissingServices, "Alpaca (required for AI analysis)")
+	}
+	if a.screener == nil && a.screenerFactory == nil {
+		status.MissingServices = append(status.MissingServices, "FMP API Key")
+	}
+
+	return status
+}
+
+// ScreenerStatus contains information about screener availability
+type ScreenerStatus struct {
+	Available       bool
+	HasFMPKey       bool
+	HasPortfolio    bool
+	HasDatabase     bool
+	MissingServices []string
+}
+
+// SetScreenerFactory sets the factory function and repository for dynamic screener creation
+func (a *App) SetScreenerFactory(factory ScreenerFactory, repo ScreenerRepositoryInterface) {
+	a.screenerFactory = factory
+	a.screenerRepo = repo
+}
+
+// SetUseMockServices prevents dynamic service reinitialization (for e2e testing)
+func (a *App) SetUseMockServices(useMocks bool) {
+	a.useMockServices = useMocks
+}
+
+// InitializeScreenerWithFMPKey creates a new FMP service and screener with the provided API key
+func (a *App) InitializeScreenerWithFMPKey(apiKey string) error {
+	// Skip reinitialization when using mock services (e2e testing)
+	if a.useMockServices {
+		observability.Info("skipping screener reinitialization: mock services enabled")
+		return nil
+	}
+	if apiKey == "" {
+		return fmt.Errorf("FMP API key is required")
+	}
+	if a.screenerFactory == nil {
+		return fmt.Errorf("screener factory not configured")
+	}
+	if a.screenerRepo == nil {
+		return fmt.Errorf("screener repository not available")
+	}
+	if a.portfolioManager == nil {
+		return fmt.Errorf("portfolio manager not available")
+	}
+
+	fmpService := services.NewFMPService(apiKey)
+	screener := a.screenerFactory(fmpService, a.portfolioManager, a.screenerRepo, &a.cfg.Screener)
+	a.screener = screener
+
+	observability.Info("screener reinitialized with new FMP API key")
+	return nil
 }
 
 // SetSettings sets the settings store (optional dependency)

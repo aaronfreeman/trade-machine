@@ -27,16 +27,28 @@ templ ScreenerProgress() {
 }
 
 // ScreenerNotConfigured renders when screener is not available
-templ ScreenerNotConfigured() {
+templ ScreenerNotConfigured(missingServices []string) {
 	<div class="card">
 		<div class="card-body text-center py-5">
 			<i class="bi bi-exclamation-triangle" style="font-size: 4rem; color: var(--color-hold); opacity: 0.7;"></i>
 			<h4 class="mt-4 mb-2">Screener Not Configured</h4>
-			<p class="text-muted mb-0">
-				The value screener requires FMP_API_KEY to be configured.
-				<br/>
-				Please set up your API key to enable stock screening.
+			<p class="text-muted mb-3">
+				The value screener requires the following services to be configured:
 			</p>
+			if len(missingServices) > 0 {
+				<ul class="list-unstyled mb-0">
+					for _, service := range missingServices {
+						<li class="mb-1">
+							<i class="bi bi-x-circle text-danger me-2"></i>
+							{ service }
+						</li>
+					}
+				</ul>
+			} else {
+				<p class="text-muted mb-0">
+					Please configure your API keys in Settings.
+				</p>
+			}
 		</div>
 	</div>
 }

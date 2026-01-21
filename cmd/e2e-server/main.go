@@ -18,6 +18,8 @@ import (
 	"trade-machine/internal/settings"
 	"trade-machine/observability"
 	"trade-machine/repository"
+	"trade-machine/screener"
+	"trade-machine/services"
 )
 
 func main() {
@@ -36,12 +38,24 @@ func main() {
 		observability.Fatal("E2E_DATABASE_URL environment variable is required")
 	}
 
+	// Check if we should enable mock services for screener testing
+	enableMocks := os.Getenv("E2E_ENABLE_MOCKS") == "true"
+
 	// Load config with minimal settings for testing
 	cfg := &config.Config{
 		HTTP: config.HTTPConfig{},
 		Agent: config.AgentConfig{
 			ConcurrencyLimit: 3,
 			TimeoutSeconds:   30,
+		},
+		Screener: config.ScreenerConfig{
+			MarketCapMin:       1000000000,  // $1B minimum
+			PERatioMax:         25,
+			PBRatioMax:         5,
+			PreFilterLimit:     10,
+			TopPicksCount:      3,
+			MaxConcurrent:      3,
+			AnalysisTimeoutSec: 60,
 		},
 	}
 
@@ -56,8 +70,18 @@ func main() {
 
 	observability.Info("connected to test database")
 
-	// Initialize app with minimal dependencies (no external API services for e2e)
-	application := app.New(cfg, repo, nil, nil)
+	// Initialize mock services if enabled
+	var portfolioManager app.PortfolioManagerInterface
+	var alpacaService services.AlpacaServiceInterface
+
+	if enableMocks {
+		alpacaService = NewMockAlpacaService()
+		portfolioManager = NewMockPortfolioManager(repo)
+		observability.Info("mock services enabled for e2e testing")
+	}
+
+	// Initialize app
+	application := app.New(cfg, repo, portfolioManager, alpacaService)
 	application.Startup(ctx)
 
 	// Initialize Settings Store with test directory
@@ -76,6 +100,18 @@ func main() {
 	}
 	application.SetSettings(settingsStore)
 	observability.Info("settings store initialized", "dir", settingsDir)
+
+	// Initialize screener if mocks are enabled
+	if enableMocks && portfolioManager != nil {
+		fmpService := NewMockFMPService()
+		valueScreener := screener.NewValueScreener(fmpService, portfolioManager, repo, &cfg.Screener)
+		application.SetScreener(valueScreener)
+
+		// Prevent dynamic reinitialization from replacing mock services
+		application.SetUseMockServices(true)
+
+		observability.Info("mock screener initialized for e2e testing")
+	}
 
 	// Create HTTP router
 	handler := api.NewHandler(application, cfg)

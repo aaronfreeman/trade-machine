@@ -144,14 +144,22 @@ func main() {
 		observability.Info("settings store initialized")
 	}
 
-	// Initialize Value Screener if dependencies are available
+	// Set up screener factory for dynamic initialization when FMP key is updated via settings
+	if portfolioManager != nil && repo != nil {
+		screenerFactory := func(fmpSvc services.FMPServiceInterface, pm app.PortfolioManagerInterface, r app.ScreenerRepositoryInterface, cfg *config.ScreenerConfig) app.ScreenerInterface {
+			return screener.NewValueScreener(fmpSvc, pm, r, cfg)
+		}
+		application.SetScreenerFactory(screenerFactory, repo)
+	}
+
+	// Initialize Value Screener if FMP is configured from environment
 	if fmpService != nil && portfolioManager != nil && repo != nil {
 		valueScreener := screener.NewValueScreener(fmpService, portfolioManager, repo, &cfg.Screener)
 		application.SetScreener(valueScreener)
 		observability.Info("value screener initialized")
 	} else {
 		if fmpService == nil {
-			observability.Warn("screener disabled: FMP service not available")
+			observability.Warn("screener disabled: FMP service not available (set FMP_API_KEY or configure in settings)")
 		}
 		if portfolioManager == nil {
 			observability.Warn("screener disabled: portfolio manager not available")

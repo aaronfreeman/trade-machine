@@ -7,6 +7,7 @@ import (
 	"trade-machine/config"
 	"trade-machine/models"
 	"trade-machine/repository"
+	"trade-machine/services"
 
 	"github.com/google/uuid"
 )
@@ -331,4 +332,283 @@ func (m *mockScreener) GetRunHistory(ctx context.Context, limit int) ([]models.S
 func (m *mockScreener) GetRun(ctx context.Context, id uuid.UUID) (*models.ScreenerRun, error) {
 	m.getRunCalled = true
 	return nil, nil
+}
+
+// mockPortfolioManager implements PortfolioManagerInterface for testing
+type mockPortfolioManager struct{}
+
+func (m *mockPortfolioManager) AnalyzeSymbol(ctx context.Context, symbol string) (*models.Recommendation, error) {
+	return nil, nil
+}
+
+// mockScreenerRepo implements ScreenerRepositoryInterface for testing
+type mockScreenerRepo struct{}
+
+func (m *mockScreenerRepo) CreateScreenerRun(ctx context.Context, run *models.ScreenerRun) error {
+	return nil
+}
+
+func (m *mockScreenerRepo) UpdateScreenerRun(ctx context.Context, run *models.ScreenerRun) error {
+	return nil
+}
+
+func (m *mockScreenerRepo) GetScreenerRun(ctx context.Context, id uuid.UUID) (*models.ScreenerRun, error) {
+	return nil, nil
+}
+
+func (m *mockScreenerRepo) GetLatestScreenerRun(ctx context.Context) (*models.ScreenerRun, error) {
+	return nil, nil
+}
+
+func (m *mockScreenerRepo) GetScreenerRunHistory(ctx context.Context, limit int) ([]models.ScreenerRun, error) {
+	return nil, nil
+}
+
+func (m *mockScreenerRepo) CreateRecommendation(ctx context.Context, rec *models.Recommendation) error {
+	return nil
+}
+
+func TestApp_SetScreenerFactory(t *testing.T) {
+	cfg := testConfig()
+	a := New(cfg, nil, &mockPortfolioManager{}, nil)
+
+	// Initially no factory or repo
+	if a.screenerFactory != nil {
+		t.Error("expected screenerFactory to be nil initially")
+	}
+	if a.screenerRepo != nil {
+		t.Error("expected screenerRepo to be nil initially")
+	}
+
+	// Set factory and repo
+	mockRepo := &mockScreenerRepo{}
+	factory := func(fmpService services.FMPServiceInterface, pm PortfolioManagerInterface, r ScreenerRepositoryInterface, cfg *config.ScreenerConfig) ScreenerInterface {
+		return &mockScreener{}
+	}
+	a.SetScreenerFactory(factory, mockRepo)
+
+	if a.screenerFactory == nil {
+		t.Error("expected screenerFactory to be set")
+	}
+	if a.screenerRepo == nil {
+		t.Error("expected screenerRepo to be set")
+	}
+}
+
+func TestApp_InitializeScreenerWithFMPKey(t *testing.T) {
+	t.Run("empty API key", func(t *testing.T) {
+		a := testApp(nil)
+		err := a.InitializeScreenerWithFMPKey("")
+		if err == nil {
+			t.Error("expected error with empty API key")
+		}
+		if err.Error() != "FMP API key is required" {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("no factory configured", func(t *testing.T) {
+		a := testApp(nil)
+		err := a.InitializeScreenerWithFMPKey("test-api-key")
+		if err == nil {
+			t.Error("expected error when factory not configured")
+		}
+		if err.Error() != "screener factory not configured" {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("no repository configured", func(t *testing.T) {
+		cfg := testConfig()
+		a := New(cfg, nil, &mockPortfolioManager{}, nil)
+		factory := func(fmpService services.FMPServiceInterface, pm PortfolioManagerInterface, r ScreenerRepositoryInterface, cfg *config.ScreenerConfig) ScreenerInterface {
+			return &mockScreener{}
+		}
+		a.screenerFactory = factory
+		// Don't set screenerRepo
+
+		err := a.InitializeScreenerWithFMPKey("test-api-key")
+		if err == nil {
+			t.Error("expected error when repo not configured")
+		}
+		if err.Error() != "screener repository not available" {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("no portfolio manager", func(t *testing.T) {
+		cfg := testConfig()
+		a := New(cfg, nil, nil, nil) // no portfolio manager
+		factory := func(fmpService services.FMPServiceInterface, pm PortfolioManagerInterface, r ScreenerRepositoryInterface, cfg *config.ScreenerConfig) ScreenerInterface {
+			return &mockScreener{}
+		}
+		a.screenerFactory = factory
+		a.screenerRepo = &mockScreenerRepo{}
+
+		err := a.InitializeScreenerWithFMPKey("test-api-key")
+		if err == nil {
+			t.Error("expected error when portfolio manager not available")
+		}
+		if err.Error() != "portfolio manager not available" {
+			t.Errorf("unexpected error: %v", err)
+		}
+	})
+
+	t.Run("success", func(t *testing.T) {
+		cfg := testConfig()
+		a := New(cfg, nil, &mockPortfolioManager{}, nil)
+
+		factoryCalled := false
+		factory := func(fmpService services.FMPServiceInterface, pm PortfolioManagerInterface, r ScreenerRepositoryInterface, cfg *config.ScreenerConfig) ScreenerInterface {
+			factoryCalled = true
+			return &mockScreener{}
+		}
+		a.SetScreenerFactory(factory, &mockScreenerRepo{})
+
+		// Initially no screener
+		if a.Screener() != nil {
+			t.Error("expected screener to be nil before initialization")
+		}
+
+		err := a.InitializeScreenerWithFMPKey("test-api-key")
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+
+		if !factoryCalled {
+			t.Error("expected factory to be called")
+		}
+
+		if a.Screener() == nil {
+			t.Error("expected screener to be set after initialization")
+		}
+	})
+}
+
+func TestApp_ScreenerStatus(t *testing.T) {
+	t.Run("no dependencies", func(t *testing.T) {
+		cfg := testConfig()
+		a := New(cfg, nil, nil, nil)
+
+		status := a.ScreenerStatus()
+
+		if status.Available {
+			t.Error("expected Available to be false")
+		}
+		if status.HasDatabase {
+			t.Error("expected HasDatabase to be false")
+		}
+		if status.HasPortfolio {
+			t.Error("expected HasPortfolio to be false")
+		}
+		if len(status.MissingServices) != 3 {
+			t.Errorf("expected 3 missing services, got %d: %v", len(status.MissingServices), status.MissingServices)
+		}
+	})
+
+	t.Run("with portfolio manager only", func(t *testing.T) {
+		cfg := testConfig()
+		a := New(cfg, nil, &mockPortfolioManager{}, nil)
+
+		status := a.ScreenerStatus()
+
+		if status.Available {
+			t.Error("expected Available to be false")
+		}
+		if status.HasDatabase {
+			t.Error("expected HasDatabase to be false")
+		}
+		if !status.HasPortfolio {
+			t.Error("expected HasPortfolio to be true")
+		}
+	})
+
+	t.Run("with screener factory configured", func(t *testing.T) {
+		cfg := testConfig()
+		a := New(cfg, nil, &mockPortfolioManager{}, nil)
+
+		factory := func(fmpService services.FMPServiceInterface, pm PortfolioManagerInterface, r ScreenerRepositoryInterface, cfg *config.ScreenerConfig) ScreenerInterface {
+			return &mockScreener{}
+		}
+		a.SetScreenerFactory(factory, &mockScreenerRepo{})
+
+		status := a.ScreenerStatus()
+
+		if status.Available {
+			t.Error("expected Available to be false (screener not yet created)")
+		}
+		if !status.HasFMPKey {
+			t.Error("expected HasFMPKey to be true when factory is set")
+		}
+	})
+
+	t.Run("with screener available", func(t *testing.T) {
+		cfg := testConfig()
+		a := New(cfg, nil, &mockPortfolioManager{}, nil)
+		a.SetScreener(&mockScreener{})
+
+		status := a.ScreenerStatus()
+
+		if !status.Available {
+			t.Error("expected Available to be true")
+		}
+		if !status.HasFMPKey {
+			t.Error("expected HasFMPKey to be true when screener is available")
+		}
+	})
+}
+
+func TestApp_SetUseMockServices(t *testing.T) {
+	t.Run("mock services prevents reinitialization", func(t *testing.T) {
+		cfg := testConfig()
+		a := New(cfg, nil, &mockPortfolioManager{}, nil)
+
+		// Set up factory and mock screener
+		factoryCalled := false
+		factory := func(fmpService services.FMPServiceInterface, pm PortfolioManagerInterface, r ScreenerRepositoryInterface, cfg *config.ScreenerConfig) ScreenerInterface {
+			factoryCalled = true
+			return &mockScreener{}
+		}
+		a.SetScreenerFactory(factory, &mockScreenerRepo{})
+		a.SetScreener(&mockScreener{})
+
+		// Enable mock services
+		a.SetUseMockServices(true)
+
+		// Try to reinitialize - should be skipped
+		err := a.InitializeScreenerWithFMPKey("test-api-key")
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+
+		// Factory should NOT have been called
+		if factoryCalled {
+			t.Error("expected factory to NOT be called when mock services enabled")
+		}
+	})
+
+	t.Run("without mock services allows reinitialization", func(t *testing.T) {
+		cfg := testConfig()
+		a := New(cfg, nil, &mockPortfolioManager{}, nil)
+
+		factoryCalled := false
+		factory := func(fmpService services.FMPServiceInterface, pm PortfolioManagerInterface, r ScreenerRepositoryInterface, cfg *config.ScreenerConfig) ScreenerInterface {
+			factoryCalled = true
+			return &mockScreener{}
+		}
+		a.SetScreenerFactory(factory, &mockScreenerRepo{})
+		a.SetScreener(&mockScreener{})
+
+		// Mock services NOT enabled (default)
+
+		err := a.InitializeScreenerWithFMPKey("test-api-key")
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		}
+
+		// Factory SHOULD have been called
+		if !factoryCalled {
+			t.Error("expected factory to be called when mock services not enabled")
+		}
+	})
 }

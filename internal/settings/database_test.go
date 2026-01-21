@@ -1,60 +1,12 @@
 package settings
 
 import (
-	"context"
+	"encoding/json"
 	"errors"
+	"os"
+	"path/filepath"
 	"testing"
 )
-
-// mockRepository implements RepositoryInterface for testing
-type mockRepository struct {
-	apiKeys map[string]*APIKeyModel
-	err     error
-}
-
-func newMockRepository() *mockRepository {
-	return &mockRepository{
-		apiKeys: make(map[string]*APIKeyModel),
-	}
-}
-
-func (m *mockRepository) GetAPIKey(ctx context.Context, serviceName string) (*APIKeyModel, error) {
-	if m.err != nil {
-		return nil, m.err
-	}
-	key, ok := m.apiKeys[serviceName]
-	if !ok {
-		return nil, errors.New("not found")
-	}
-	return key, nil
-}
-
-func (m *mockRepository) GetAllAPIKeys(ctx context.Context) ([]APIKeyModel, error) {
-	if m.err != nil {
-		return nil, m.err
-	}
-	var keys []APIKeyModel
-	for _, key := range m.apiKeys {
-		keys = append(keys, *key)
-	}
-	return keys, nil
-}
-
-func (m *mockRepository) UpsertAPIKey(ctx context.Context, apiKey *APIKeyModel) error {
-	if m.err != nil {
-		return m.err
-	}
-	m.apiKeys[apiKey.ServiceName] = apiKey
-	return nil
-}
-
-func (m *mockRepository) DeleteAPIKey(ctx context.Context, serviceName string) error {
-	if m.err != nil {
-		return m.err
-	}
-	delete(m.apiKeys, serviceName)
-	return nil
-}
 
 // TestDatabaseStorage tests the database storage path
 func TestDatabaseStorage(t *testing.T) {
@@ -242,21 +194,43 @@ func TestDatabaseWithSecret(t *testing.T) {
 func TestFileMigrationToDatabase(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// First, create a file-based store with some data
-	fileStore, err := NewStore(tmpDir, "test-passphrase", nil)
+	// Manually create an encrypted settings file with some data
+	crypto, err := NewCrypto("test-passphrase")
 	if err != nil {
-		t.Fatalf("NewStore() file-based error = %v", err)
+		t.Fatalf("Failed to create crypto: %v", err)
 	}
 
-	fileStore.SetAPIKey(&APIKeyConfig{
-		ServiceName: ServiceOpenAI,
-		APIKey:      "sk-migrate-test",
-	})
-	fileStore.SetAPIKey(&APIKeyConfig{
-		ServiceName: ServiceAlpaca,
-		APIKey:      "AKMIGRATE",
-		APISecret:   "migrate-secret",
-	})
+	// Create settings data
+	settings := &Settings{
+		APIKeys: map[ServiceName]*APIKeyConfig{
+			ServiceOpenAI: {
+				ServiceName: ServiceOpenAI,
+				APIKey:      "sk-migrate-test",
+			},
+			ServiceAlpaca: {
+				ServiceName: ServiceAlpaca,
+				APIKey:      "AKMIGRATE",
+				APISecret:   "migrate-secret",
+			},
+		},
+	}
+
+	// Marshal and encrypt
+	data, err := json.Marshal(settings)
+	if err != nil {
+		t.Fatalf("Failed to marshal settings: %v", err)
+	}
+
+	encrypted, err := crypto.Encrypt(data)
+	if err != nil {
+		t.Fatalf("Failed to encrypt settings: %v", err)
+	}
+
+	// Write to file
+	filePath := filepath.Join(tmpDir, "settings.enc")
+	if err := os.WriteFile(filePath, encrypted, 0600); err != nil {
+		t.Fatalf("Failed to write settings file: %v", err)
+	}
 
 	// Now simulate an empty database by creating a custom mock that returns
 	// an error on first GetAllAPIKeys (simulating empty DB), then works normally
@@ -288,21 +262,6 @@ func TestFileMigrationToDatabase(t *testing.T) {
 	if alpaca == nil || alpaca.APIKey != "AKMIGRATE" {
 		t.Error("Migrated Alpaca key not accessible")
 	}
-}
-
-// mockRepositoryWithOnce extends mockRepository to support one-time error
-type mockRepositoryWithOnce struct {
-	*mockRepository
-	firstGetAllKeysError error
-	getCallCount         int
-}
-
-func (m *mockRepositoryWithOnce) GetAllAPIKeys(ctx context.Context) ([]APIKeyModel, error) {
-	m.getCallCount++
-	if m.getCallCount == 1 && m.firstGetAllKeysError != nil {
-		return nil, m.firstGetAllKeysError
-	}
-	return m.mockRepository.GetAllAPIKeys(ctx)
 }
 
 // TestDatabaseError tests error handling
@@ -344,15 +303,38 @@ func TestDatabaseError(t *testing.T) {
 func TestNoFileMigrationWhenDBHasData(t *testing.T) {
 	tmpDir := t.TempDir()
 
-	// Create file-based store with data
-	fileStore, err := NewStore(tmpDir, "test-passphrase", nil)
+	// Manually create an encrypted settings file with some data
+	crypto, err := NewCrypto("test-passphrase")
 	if err != nil {
-		t.Fatalf("NewStore() file-based error = %v", err)
+		t.Fatalf("Failed to create crypto: %v", err)
 	}
-	fileStore.SetAPIKey(&APIKeyConfig{
-		ServiceName: ServiceOpenAI,
-		APIKey:      "sk-old-file-key",
-	})
+
+	// Create settings data
+	settings := &Settings{
+		APIKeys: map[ServiceName]*APIKeyConfig{
+			ServiceOpenAI: {
+				ServiceName: ServiceOpenAI,
+				APIKey:      "sk-old-file-key",
+			},
+		},
+	}
+
+	// Marshal and encrypt
+	data, err := json.Marshal(settings)
+	if err != nil {
+		t.Fatalf("Failed to marshal settings: %v", err)
+	}
+
+	encrypted, err := crypto.Encrypt(data)
+	if err != nil {
+		t.Fatalf("Failed to encrypt settings: %v", err)
+	}
+
+	// Write to file
+	filePath := filepath.Join(tmpDir, "settings.enc")
+	if err := os.WriteFile(filePath, encrypted, 0600); err != nil {
+		t.Fatalf("Failed to write settings file: %v", err)
+	}
 
 	// Pre-populate database with different data
 	repo := newMockRepository()

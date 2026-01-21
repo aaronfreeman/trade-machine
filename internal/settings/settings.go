@@ -80,8 +80,12 @@ type Store struct {
 }
 
 // NewStore creates a new settings store
-// If repo is provided, it uses the database for storage, otherwise falls back to file-based storage
+// Repository is required for database storage
 func NewStore(dataDir string, passphrase string, repo RepositoryInterface) (*Store, error) {
+	if repo == nil {
+		return nil, fmt.Errorf("repository is required for settings storage")
+	}
+
 	if dataDir == "" {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
@@ -108,20 +112,12 @@ func NewStore(dataDir string, passphrase string, repo RepositoryInterface) (*Sto
 		ctx:        context.Background(),
 	}
 
-	// Try to load existing settings
-	// If using database, load from DB first, then fall back to file for migration
-	if repo != nil {
-		if err := store.loadFromDB(); err != nil {
-			fmt.Printf("info: no settings found in database, checking file: %v\n", err)
-			// Try to migrate from file
-			if err := store.migrateFromFile(); err != nil && !errors.Is(err, os.ErrNotExist) {
-				fmt.Printf("warning: failed to migrate settings from file: %v\n", err)
-			}
-		}
-	} else {
-		// Fallback to file-based storage if no repo
-		if err := store.load(); err != nil && !errors.Is(err, os.ErrNotExist) {
-			fmt.Printf("warning: failed to load settings: %v\n", err)
+	// Try to load existing settings from database
+	if err := store.loadFromDB(); err != nil {
+		fmt.Printf("info: no settings found in database, checking file: %v\n", err)
+		// Try to migrate from file (one-time migration)
+		if err := store.migrateFromFile(); err != nil && !errors.Is(err, os.ErrNotExist) {
+			fmt.Printf("warning: failed to migrate settings from file: %v\n", err)
 		}
 	}
 
@@ -159,18 +155,12 @@ func (s *Store) load() error {
 	return nil
 }
 
-// Save persists settings to encrypted file or database
+// Save persists settings to database
 func (s *Store) Save() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// If we have a repository, save to database
-	if s.repo != nil {
-		return s.saveToDB()
-	}
-
-	// Otherwise, save to file (legacy)
-	return s.saveToFile()
+	return s.saveToDB()
 }
 
 // saveToFile persists settings to encrypted file (legacy)
@@ -323,16 +313,11 @@ func (s *Store) DeleteAPIKey(service ServiceName) error {
 	delete(s.settings.APIKeys, service)
 	s.mu.Unlock()
 
-	// If using database, delete from there
-	if s.repo != nil {
-		if err := s.repo.DeleteAPIKey(s.ctx, string(service)); err != nil {
-			return fmt.Errorf("failed to delete from database: %w", err)
-		}
-		return nil
+	// Delete from database
+	if err := s.repo.DeleteAPIKey(s.ctx, string(service)); err != nil {
+		return fmt.Errorf("failed to delete from database: %w", err)
 	}
-
-	// Otherwise save to file
-	return s.Save()
+	return nil
 }
 
 // GetMaskedSettings returns all settings with API keys masked

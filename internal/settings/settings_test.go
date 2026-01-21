@@ -9,8 +9,9 @@ import (
 func TestNewStore(t *testing.T) {
 	// Use a temp directory for testing
 	tmpDir := t.TempDir()
+	repo := newMockRepository()
 
-	store, err := NewStore(tmpDir, "test-passphrase", nil)
+	store, err := NewStore(tmpDir, "test-passphrase", repo)
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
@@ -24,9 +25,23 @@ func TestNewStore(t *testing.T) {
 	}
 }
 
+func TestNewStoreRequiresRepository(t *testing.T) {
+	// Test that NewStore fails without repository
+	tmpDir := t.TempDir()
+	
+	store, err := NewStore(tmpDir, "test-passphrase", nil)
+	if err == nil {
+		t.Error("NewStore() should fail without repository")
+	}
+	if store != nil {
+		t.Error("NewStore() should return nil store when it fails")
+	}
+}
+
 func TestNewStoreWithDefaultDir(t *testing.T) {
 	// Test with empty dataDir - should use home directory
-	store, err := NewStore("", "test-passphrase", nil)
+	repo := newMockRepository()
+	store, err := NewStore("", "test-passphrase", repo)
 	if err != nil {
 		t.Fatalf("NewStore() with empty dir error = %v", err)
 	}
@@ -45,7 +60,8 @@ func TestNewStoreWithDefaultDir(t *testing.T) {
 
 func TestSetAndGetAPIKey(t *testing.T) {
 	tmpDir := t.TempDir()
-	store, err := NewStore(tmpDir, "test-passphrase", nil)
+	repo := newMockRepository()
+	store, err := NewStore(tmpDir, "test-passphrase", repo)
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
@@ -74,7 +90,8 @@ func TestSetAndGetAPIKey(t *testing.T) {
 
 func TestSetAPIKeyWithSecret(t *testing.T) {
 	tmpDir := t.TempDir()
-	store, err := NewStore(tmpDir, "test-passphrase", nil)
+	repo := newMockRepository()
+	store, err := NewStore(tmpDir, "test-passphrase", repo)
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
@@ -110,7 +127,8 @@ func TestSetAPIKeyWithSecret(t *testing.T) {
 
 func TestDeleteAPIKey(t *testing.T) {
 	tmpDir := t.TempDir()
-	store, err := NewStore(tmpDir, "test-passphrase", nil)
+	repo := newMockRepository()
+	store, err := NewStore(tmpDir, "test-passphrase", repo)
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
@@ -146,7 +164,8 @@ func TestDeleteAPIKey(t *testing.T) {
 
 func TestGetMaskedSettings(t *testing.T) {
 	tmpDir := t.TempDir()
-	store, err := NewStore(tmpDir, "test-passphrase", nil)
+	repo := newMockRepository()
+	store, err := NewStore(tmpDir, "test-passphrase", repo)
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
@@ -209,7 +228,8 @@ func TestMaskString(t *testing.T) {
 
 func TestIsConfigured(t *testing.T) {
 	tmpDir := t.TempDir()
-	store, err := NewStore(tmpDir, "test-passphrase", nil)
+	repo := newMockRepository()
+	store, err := NewStore(tmpDir, "test-passphrase", repo)
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
@@ -233,9 +253,10 @@ func TestIsConfigured(t *testing.T) {
 
 func TestPersistence(t *testing.T) {
 	tmpDir := t.TempDir()
+	repo := newMockRepository()
 
 	// Create store and save data
-	store1, err := NewStore(tmpDir, "test-passphrase", nil)
+	store1, err := NewStore(tmpDir, "test-passphrase", repo)
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
@@ -250,8 +271,8 @@ func TestPersistence(t *testing.T) {
 		APISecret:   "secret",
 	})
 
-	// Create new store with same path - should load saved data
-	store2, err := NewStore(tmpDir, "test-passphrase", nil)
+	// Create new store with same repository - should load saved data
+	store2, err := NewStore(tmpDir, "test-passphrase", repo)
 	if err != nil {
 		t.Fatalf("NewStore() second load error = %v", err)
 	}
@@ -270,9 +291,10 @@ func TestPersistence(t *testing.T) {
 
 func TestWrongPassphrase(t *testing.T) {
 	tmpDir := t.TempDir()
+	repo1 := newMockRepository()
 
 	// Create store and save data
-	store1, err := NewStore(tmpDir, "correct-passphrase", nil)
+	store1, err := NewStore(tmpDir, "correct-passphrase", repo1)
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
@@ -284,7 +306,13 @@ func TestWrongPassphrase(t *testing.T) {
 
 	// Try to load with wrong passphrase - should fail gracefully
 	// and return empty settings
-	store2, err := NewStore(tmpDir, "wrong-passphrase", nil)
+	repo2 := newMockRepository()
+	// Copy the encrypted data from repo1 to repo2
+	for k, v := range repo1.apiKeys {
+		repo2.apiKeys[k] = v
+	}
+	
+	store2, err := NewStore(tmpDir, "wrong-passphrase", repo2)
 	if err != nil {
 		t.Fatalf("NewStore() with wrong passphrase error = %v", err)
 	}
@@ -297,7 +325,8 @@ func TestWrongPassphrase(t *testing.T) {
 
 func TestSetAPIKeyValidation(t *testing.T) {
 	tmpDir := t.TempDir()
-	store, err := NewStore(tmpDir, "test-passphrase", nil)
+	repo := newMockRepository()
+	store, err := NewStore(tmpDir, "test-passphrase", repo)
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
@@ -369,7 +398,8 @@ func TestServiceDescription(t *testing.T) {
 
 func TestGetAllAPIKeys(t *testing.T) {
 	tmpDir := t.TempDir()
-	store, err := NewStore(tmpDir, "test-passphrase", nil)
+	repo := newMockRepository()
+	store, err := NewStore(tmpDir, "test-passphrase", repo)
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}

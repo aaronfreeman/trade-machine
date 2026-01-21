@@ -4,23 +4,23 @@
 This document describes the migration of API key storage from encrypted files to encrypted database storage in the trade-machine application.
 
 ## Problem Statement
-The application previously stored user-entered API keys in an encrypted file (`~/.trade-machine/settings.enc`). This needed to be changed to store the keys in the database while maintaining encryption.
+The application previously stored user-entered API keys in an encrypted file (`~/.trade-machine/settings.enc`). This has been changed to store the keys in the database while maintaining encryption. **Database storage is now required** - the application will not fall back to file-based storage.
 
 ## Solution
 
 ### Architecture
-The solution implements a hybrid approach that:
-1. **Stores API keys in the database** when a repository connection is available
-2. **Falls back to file-based storage** when no database is available
-3. **Automatically migrates** existing file-based keys to the database on first run
-4. **Maintains strong encryption** using AES-256-GCM with PBKDF2 key derivation
+The solution implements database-only storage with one-time file migration:
+1. **Stores API keys in the database** (repository is required)
+2. **Automatically migrates** existing file-based keys to the database on first run
+3. **Maintains strong encryption** using AES-256-GCM with PBKDF2 key derivation
+4. **No file-based fallback** - if database is not available, the application will fail
 
 ### Key Features
 - ✅ AES-256-GCM encryption maintained
-- ✅ Automatic file-to-database migration
-- ✅ Backward compatible file-based mode
-- ✅ 36 comprehensive tests passing
-- ✅ No breaking API changes
+- ✅ Automatic one-time file-to-database migration
+- ✅ Database storage required (no fallback)
+- ✅ 37 comprehensive tests passing
+- ⚠️ Breaking change: Repository parameter now required
 
 ## Implementation Details
 
@@ -42,11 +42,11 @@ CREATE TABLE api_keys (
 ### Migration Strategy
 1. On startup, attempt to load keys from database
 2. If database is empty, check for file-based keys
-3. If file exists, automatically migrate to database
+3. If file exists, automatically migrate to database (one-time)
 4. Original file is preserved for safety
 
 ### Testing
-- 36 tests covering file and database modes
+- 37 tests covering database mode
 - Mock repository for isolated testing
 - Comprehensive coverage of encryption, migration, and error scenarios
 
@@ -69,6 +69,9 @@ goose -dir migrations up
 # Optional: backup and remove ~/.trade-machine/settings.enc
 ```
 
+### BREAKING CHANGE
+**Repository is now required.** The application will fail to start without a database connection. The file-based fallback has been removed.
+
 ## Security
 - Encryption: AES-256-GCM with PBKDF2 (100k iterations)
 - Each key encrypted separately
@@ -78,5 +81,5 @@ goose -dir migrations up
 ## Files Modified
 - `migrations/004_add_api_keys_table.sql` - Schema
 - `repository/api_keys.go` - Database operations
-- `internal/settings/settings.go` - Hybrid storage logic
+- `internal/settings/settings.go` - Database-only storage logic
 - Tests updated with comprehensive coverage

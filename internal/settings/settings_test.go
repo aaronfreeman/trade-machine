@@ -10,7 +10,7 @@ func TestNewStore(t *testing.T) {
 	// Use a temp directory for testing
 	tmpDir := t.TempDir()
 
-	store, err := NewStore(tmpDir, "test-passphrase")
+	store, err := NewStore(tmpDir, "test-passphrase", nil)
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
@@ -26,7 +26,7 @@ func TestNewStore(t *testing.T) {
 
 func TestNewStoreWithDefaultDir(t *testing.T) {
 	// Test with empty dataDir - should use home directory
-	store, err := NewStore("", "test-passphrase")
+	store, err := NewStore("", "test-passphrase", nil)
 	if err != nil {
 		t.Fatalf("NewStore() with empty dir error = %v", err)
 	}
@@ -45,7 +45,7 @@ func TestNewStoreWithDefaultDir(t *testing.T) {
 
 func TestSetAndGetAPIKey(t *testing.T) {
 	tmpDir := t.TempDir()
-	store, err := NewStore(tmpDir, "test-passphrase")
+	store, err := NewStore(tmpDir, "test-passphrase", nil)
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
@@ -74,7 +74,7 @@ func TestSetAndGetAPIKey(t *testing.T) {
 
 func TestSetAPIKeyWithSecret(t *testing.T) {
 	tmpDir := t.TempDir()
-	store, err := NewStore(tmpDir, "test-passphrase")
+	store, err := NewStore(tmpDir, "test-passphrase", nil)
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
@@ -110,7 +110,7 @@ func TestSetAPIKeyWithSecret(t *testing.T) {
 
 func TestDeleteAPIKey(t *testing.T) {
 	tmpDir := t.TempDir()
-	store, err := NewStore(tmpDir, "test-passphrase")
+	store, err := NewStore(tmpDir, "test-passphrase", nil)
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
@@ -146,7 +146,7 @@ func TestDeleteAPIKey(t *testing.T) {
 
 func TestGetMaskedSettings(t *testing.T) {
 	tmpDir := t.TempDir()
-	store, err := NewStore(tmpDir, "test-passphrase")
+	store, err := NewStore(tmpDir, "test-passphrase", nil)
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
@@ -209,7 +209,7 @@ func TestMaskString(t *testing.T) {
 
 func TestIsConfigured(t *testing.T) {
 	tmpDir := t.TempDir()
-	store, err := NewStore(tmpDir, "test-passphrase")
+	store, err := NewStore(tmpDir, "test-passphrase", nil)
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
@@ -235,7 +235,7 @@ func TestPersistence(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create store and save data
-	store1, err := NewStore(tmpDir, "test-passphrase")
+	store1, err := NewStore(tmpDir, "test-passphrase", nil)
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
@@ -251,7 +251,7 @@ func TestPersistence(t *testing.T) {
 	})
 
 	// Create new store with same path - should load saved data
-	store2, err := NewStore(tmpDir, "test-passphrase")
+	store2, err := NewStore(tmpDir, "test-passphrase", nil)
 	if err != nil {
 		t.Fatalf("NewStore() second load error = %v", err)
 	}
@@ -272,7 +272,7 @@ func TestWrongPassphrase(t *testing.T) {
 	tmpDir := t.TempDir()
 
 	// Create store and save data
-	store1, err := NewStore(tmpDir, "correct-passphrase")
+	store1, err := NewStore(tmpDir, "correct-passphrase", nil)
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
@@ -284,7 +284,7 @@ func TestWrongPassphrase(t *testing.T) {
 
 	// Try to load with wrong passphrase - should fail gracefully
 	// and return empty settings
-	store2, err := NewStore(tmpDir, "wrong-passphrase")
+	store2, err := NewStore(tmpDir, "wrong-passphrase", nil)
 	if err != nil {
 		t.Fatalf("NewStore() with wrong passphrase error = %v", err)
 	}
@@ -297,7 +297,7 @@ func TestWrongPassphrase(t *testing.T) {
 
 func TestSetAPIKeyValidation(t *testing.T) {
 	tmpDir := t.TempDir()
-	store, err := NewStore(tmpDir, "test-passphrase")
+	store, err := NewStore(tmpDir, "test-passphrase", nil)
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}
@@ -369,7 +369,7 @@ func TestServiceDescription(t *testing.T) {
 
 func TestGetAllAPIKeys(t *testing.T) {
 	tmpDir := t.TempDir()
-	store, err := NewStore(tmpDir, "test-passphrase")
+	store, err := NewStore(tmpDir, "test-passphrase", nil)
 	if err != nil {
 		t.Fatalf("NewStore() error = %v", err)
 	}

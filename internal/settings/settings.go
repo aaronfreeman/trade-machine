@@ -1,12 +1,15 @@
 package settings
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/google/uuid"
 )
 
 // ServiceName represents a configurable service
@@ -46,6 +49,25 @@ type MaskedAPIKeyConfig struct {
 	IsConfigured bool        `json:"is_configured"`
 }
 
+// RepositoryInterface defines the database operations needed by Store
+type RepositoryInterface interface {
+	GetAPIKey(ctx context.Context, serviceName string) (*APIKeyModel, error)
+	GetAllAPIKeys(ctx context.Context) ([]APIKeyModel, error)
+	UpsertAPIKey(ctx context.Context, apiKey *APIKeyModel) error
+	DeleteAPIKey(ctx context.Context, serviceName string) error
+}
+
+// APIKeyModel represents the database model for API keys
+type APIKeyModel struct {
+	ID                 uuid.UUID
+	ServiceName        string
+	APIKeyEncrypted    []byte
+	APISecretEncrypted []byte
+	BaseURL            string
+	Region             string
+	ModelID            string
+}
+
 // Store manages persistent storage of settings
 type Store struct {
 	mu         sync.RWMutex
@@ -53,10 +75,13 @@ type Store struct {
 	settings   *Settings
 	crypto     *Crypto
 	passphrase string
+	repo       RepositoryInterface
+	ctx        context.Context
 }
 
 // NewStore creates a new settings store
-func NewStore(dataDir string, passphrase string) (*Store, error) {
+// If repo is provided, it uses the database for storage, otherwise falls back to file-based storage
+func NewStore(dataDir string, passphrase string, repo RepositoryInterface) (*Store, error) {
 	if dataDir == "" {
 		homeDir, err := os.UserHomeDir()
 		if err != nil {
@@ -79,12 +104,25 @@ func NewStore(dataDir string, passphrase string) (*Store, error) {
 		crypto:     crypto,
 		passphrase: passphrase,
 		settings:   newDefaultSettings(),
+		repo:       repo,
+		ctx:        context.Background(),
 	}
 
 	// Try to load existing settings
-	if err := store.load(); err != nil && !errors.Is(err, os.ErrNotExist) {
-		// Log but don't fail - we'll use defaults
-		fmt.Printf("warning: failed to load settings: %v\n", err)
+	// If using database, load from DB first, then fall back to file for migration
+	if repo != nil {
+		if err := store.loadFromDB(); err != nil {
+			fmt.Printf("info: no settings found in database, checking file: %v\n", err)
+			// Try to migrate from file
+			if err := store.migrateFromFile(); err != nil && !errors.Is(err, os.ErrNotExist) {
+				fmt.Printf("warning: failed to migrate settings from file: %v\n", err)
+			}
+		}
+	} else {
+		// Fallback to file-based storage if no repo
+		if err := store.load(); err != nil && !errors.Is(err, os.ErrNotExist) {
+			fmt.Printf("warning: failed to load settings: %v\n", err)
+		}
 	}
 
 	return store, nil
@@ -121,11 +159,22 @@ func (s *Store) load() error {
 	return nil
 }
 
-// Save persists settings to encrypted file
+// Save persists settings to encrypted file or database
 func (s *Store) Save() error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// If we have a repository, save to database
+	if s.repo != nil {
+		return s.saveToDB()
+	}
+
+	// Otherwise, save to file (legacy)
+	return s.saveToFile()
+}
+
+// saveToFile persists settings to encrypted file (legacy)
+func (s *Store) saveToFile() error {
 	data, err := json.Marshal(s.settings)
 	if err != nil {
 		return fmt.Errorf("failed to marshal settings: %w", err)
@@ -138,6 +187,102 @@ func (s *Store) Save() error {
 
 	if err := os.WriteFile(s.filePath, encrypted, 0600); err != nil {
 		return fmt.Errorf("failed to write settings file: %w", err)
+	}
+
+	return nil
+}
+
+// saveToDB persists settings to database
+func (s *Store) saveToDB() error {
+	// This is called with lock already held
+	for serviceName, config := range s.settings.APIKeys {
+		apiKeyEncrypted, err := s.crypto.Encrypt([]byte(config.APIKey))
+		if err != nil {
+			return fmt.Errorf("failed to encrypt api key for %s: %w", serviceName, err)
+		}
+
+		var apiSecretEncrypted []byte
+		if config.APISecret != "" {
+			apiSecretEncrypted, err = s.crypto.Encrypt([]byte(config.APISecret))
+			if err != nil {
+				return fmt.Errorf("failed to encrypt api secret for %s: %w", serviceName, err)
+			}
+		}
+
+		dbModel := &APIKeyModel{
+			ServiceName:        string(serviceName),
+			APIKeyEncrypted:    apiKeyEncrypted,
+			APISecretEncrypted: apiSecretEncrypted,
+			BaseURL:            config.BaseURL,
+			Region:             config.Region,
+			ModelID:            config.ModelID,
+		}
+
+		if err := s.repo.UpsertAPIKey(s.ctx, dbModel); err != nil {
+			return fmt.Errorf("failed to save api key for %s: %w", serviceName, err)
+		}
+	}
+
+	return nil
+}
+
+// loadFromDB loads settings from database
+func (s *Store) loadFromDB() error {
+	apiKeys, err := s.repo.GetAllAPIKeys(s.ctx)
+	if err != nil {
+		return fmt.Errorf("failed to load api keys from database: %w", err)
+	}
+
+	s.settings.APIKeys = make(map[ServiceName]*APIKeyConfig)
+
+	for _, dbModel := range apiKeys {
+		config := &APIKeyConfig{
+			ServiceName: ServiceName(dbModel.ServiceName),
+			BaseURL:     dbModel.BaseURL,
+			Region:      dbModel.Region,
+			ModelID:     dbModel.ModelID,
+		}
+
+		// Decrypt API key
+		if len(dbModel.APIKeyEncrypted) > 0 {
+			decrypted, err := s.crypto.Decrypt(dbModel.APIKeyEncrypted)
+			if err != nil {
+				fmt.Printf("warning: failed to decrypt api key for %s: %v\n", dbModel.ServiceName, err)
+				continue
+			}
+			config.APIKey = string(decrypted)
+		}
+
+		// Decrypt API secret
+		if len(dbModel.APISecretEncrypted) > 0 {
+			decrypted, err := s.crypto.Decrypt(dbModel.APISecretEncrypted)
+			if err != nil {
+				fmt.Printf("warning: failed to decrypt api secret for %s: %v\n", dbModel.ServiceName, err)
+				continue
+			}
+			config.APISecret = string(decrypted)
+		}
+
+		s.settings.APIKeys[ServiceName(dbModel.ServiceName)] = config
+	}
+
+	return nil
+}
+
+// migrateFromFile migrates settings from file to database
+func (s *Store) migrateFromFile() error {
+	// Load from file
+	if err := s.load(); err != nil {
+		return err
+	}
+
+	// If we have settings and a repo, migrate to database
+	if len(s.settings.APIKeys) > 0 && s.repo != nil {
+		fmt.Printf("migrating %d API keys from file to database\n", len(s.settings.APIKeys))
+		if err := s.saveToDB(); err != nil {
+			return fmt.Errorf("failed to migrate to database: %w", err)
+		}
+		fmt.Println("migration complete")
 	}
 
 	return nil
@@ -178,6 +323,15 @@ func (s *Store) DeleteAPIKey(service ServiceName) error {
 	delete(s.settings.APIKeys, service)
 	s.mu.Unlock()
 
+	// If using database, delete from there
+	if s.repo != nil {
+		if err := s.repo.DeleteAPIKey(s.ctx, string(service)); err != nil {
+			return fmt.Errorf("failed to delete from database: %w", err)
+		}
+		return nil
+	}
+
+	// Otherwise save to file
 	return s.Save()
 }
 

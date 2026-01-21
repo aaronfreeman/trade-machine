@@ -46,10 +46,7 @@ func main() {
 	if cfg.HasDatabase() {
 		repo, err = repository.NewRepository(ctx, cfg.Database.URL)
 		if err != nil {
-			observability.Warn("failed to initialize database",
-				"error", err,
-				"note", "running without database connection, some features will be unavailable")
-			repo = nil
+			observability.Fatal("failed to initialize database", "error", err)
 		}
 	} else {
 		observability.Fatal("DATABASE_URL environment variable is required")

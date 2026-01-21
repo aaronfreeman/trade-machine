@@ -3,6 +3,7 @@ package api
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -13,6 +14,43 @@ import (
 	"trade-machine/internal/settings"
 	"trade-machine/repository"
 )
+
+// mockSettingsRepository implements settings.RepositoryInterface for testing
+type mockSettingsRepository struct {
+	apiKeys map[string]*settings.APIKeyModel
+}
+
+func newMockSettingsRepository() *mockSettingsRepository {
+	return &mockSettingsRepository{
+		apiKeys: make(map[string]*settings.APIKeyModel),
+	}
+}
+
+func (m *mockSettingsRepository) GetAPIKey(ctx context.Context, serviceName string) (*settings.APIKeyModel, error) {
+	key, ok := m.apiKeys[serviceName]
+	if !ok {
+		return nil, errors.New("not found")
+	}
+	return key, nil
+}
+
+func (m *mockSettingsRepository) GetAllAPIKeys(ctx context.Context) ([]settings.APIKeyModel, error) {
+	var keys []settings.APIKeyModel
+	for _, key := range m.apiKeys {
+		keys = append(keys, *key)
+	}
+	return keys, nil
+}
+
+func (m *mockSettingsRepository) UpsertAPIKey(ctx context.Context, apiKey *settings.APIKeyModel) error {
+	m.apiKeys[apiKey.ServiceName] = apiKey
+	return nil
+}
+
+func (m *mockSettingsRepository) DeleteAPIKey(ctx context.Context, serviceName string) error {
+	delete(m.apiKeys, serviceName)
+	return nil
+}
 
 // testConfig returns a test configuration
 func testConfig() *config.Config {
@@ -28,7 +66,8 @@ func testApp(repo app.RepositoryInterface) *app.App {
 func testAppWithSettings(t *testing.T) *app.App {
 	t.Helper()
 	tmpDir := t.TempDir()
-	store, err := settings.NewStore(tmpDir, "test-passphrase")
+	mockRepo := newMockSettingsRepository()
+	store, err := settings.NewStore(tmpDir, "test-passphrase", mockRepo)
 	if err != nil {
 		t.Fatalf("failed to create settings store: %v", err)
 	}

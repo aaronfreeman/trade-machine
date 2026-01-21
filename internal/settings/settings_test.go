@@ -28,7 +28,7 @@ func TestNewStore(t *testing.T) {
 func TestNewStoreRequiresRepository(t *testing.T) {
 	// Test that NewStore fails without repository
 	tmpDir := t.TempDir()
-	
+
 	store, err := NewStore(tmpDir, "test-passphrase", nil)
 	if err == nil {
 		t.Error("NewStore() should fail without repository")
@@ -311,7 +311,7 @@ func TestWrongPassphrase(t *testing.T) {
 	for k, v := range repo1.apiKeys {
 		repo2.apiKeys[k] = v
 	}
-	
+
 	store2, err := NewStore(tmpDir, "wrong-passphrase", repo2)
 	if err != nil {
 		t.Fatalf("NewStore() with wrong passphrase error = %v", err)

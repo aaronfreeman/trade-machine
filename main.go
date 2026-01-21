@@ -133,7 +133,7 @@ func main() {
 	// Initialize Settings Store
 	settingsPassphrase := os.Getenv("SETTINGS_PASSPHRASE")
 	settingsDir := os.Getenv("SETTINGS_DIR")
-	settingsStore, err := settings.NewStore(settingsDir, settingsPassphrase)
+	settingsStore, err := settings.NewStore(settingsDir, settingsPassphrase, repo)
 	if err != nil {
 		observability.Warn("failed to initialize settings store", "error", err)
 	} else {

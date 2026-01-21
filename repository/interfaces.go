@@ -4,6 +4,7 @@ import (
 	"context"
 	"time"
 
+	"trade-machine/internal/settings"
 	"trade-machine/models"
 
 	"github.com/google/uuid"
@@ -59,6 +60,12 @@ type RepositoryInterface interface {
 	GetScreenerRun(ctx context.Context, id uuid.UUID) (*models.ScreenerRun, error)
 	GetLatestScreenerRun(ctx context.Context) (*models.ScreenerRun, error)
 	GetScreenerRunHistory(ctx context.Context, limit int) ([]models.ScreenerRun, error)
+
+	// API Keys
+	GetAPIKey(ctx context.Context, serviceName string) (*settings.APIKeyModel, error)
+	GetAllAPIKeys(ctx context.Context) ([]settings.APIKeyModel, error)
+	UpsertAPIKey(ctx context.Context, apiKey *settings.APIKeyModel) error
+	DeleteAPIKey(ctx context.Context, serviceName string) error
 }
 
 // Compile-time interface verification

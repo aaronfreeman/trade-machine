@@ -94,7 +94,7 @@ func main() {
 		defer os.RemoveAll(settingsDir)
 	}
 
-	settingsStore, err := settings.NewStore(settingsDir, "e2e-test-passphrase")
+	settingsStore, err := settings.NewStore(settingsDir, "e2e-test-passphrase", repo)
 	if err != nil {
 		observability.Fatal("failed to initialize settings store", "error", err)
 	}

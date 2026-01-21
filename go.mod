@@ -3,6 +3,7 @@ module trade-machine
 go 1.23.0
 
 require (
+	github.com/a-h/templ v0.3.977
 	github.com/alpacahq/alpaca-trade-api-go/v3 v3.6.0
 	github.com/go-chi/chi/v5 v5.2.4
 	github.com/google/uuid v1.6.0
